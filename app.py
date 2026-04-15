@@ -4,6 +4,7 @@ import random
 from datetime import datetime, timedelta
 import requests
 import re
+import plotly.express as px
 
 # ==========================================
 # 1. INIZIALIZZAZIONE DATI E SESSIONI
@@ -55,7 +56,7 @@ def genera_database():
             "Ruolo": f"{seniority} {ruolo}",
             "Seniority": seniority,
             "Skill": ", ".join(skills),
-            "Esperienze": esperienze, # Lista di dizionari con i progetti passati
+            "Esperienze": esperienze,
             "Costo_Giorno": costo_base,
             "Occupazione_%": occupazione,
             "Disponibile_dal": disp_dal
@@ -193,7 +194,6 @@ elif ruolo_utente == "Project Manager":
                     st.rerun()
                 else: st.error("Credenziali errate.")
     else:
-        # MENU LATERALE PM
         st.sidebar.markdown("---")
         st.sidebar.subheader("🛠️ Navigazione PM")
         pagina_pm = st.sidebar.radio("Vai a:", [
@@ -214,7 +214,6 @@ elif ruolo_utente == "Project Manager":
             st.title("Centro di Controllo Manageriale")
             st.info("Benvenuto. Da qui puoi monitorare lo stato di salute del team, approvare competenze e verificare le risorse in panchina.")
             
-            # Alert Bench
             risorse_libere = st.session_state.df_risorse[st.session_state.df_risorse['Occupazione_%'] == 0]
             if not risorse_libere.empty:
                 st.error(f"🚨 **ATTENZIONE:** Ci sono {len(risorse_libere)} risorse in Bench (In attesa di allocazione a costo passivo per l'azienda).")
@@ -222,7 +221,6 @@ elif ruolo_utente == "Project Manager":
                     for _, r in risorse_libere.iterrows():
                         st.write(f"- **{r['Nome']}** ({r['Ruolo']}) - Costo: {r['Costo_Giorno']}€/gg")
             
-            # Approvals
             if len(st.session_state.pending_approvals) > 0:
                 st.warning(f"🔔 Hai {len(st.session_state.pending_approvals)} competenze da validare.")
                 with st.expander("Apri Pannello Validazione", expanded=True):
@@ -262,9 +260,8 @@ elif ruolo_utente == "Project Manager":
                 for skill in skill_richieste:
                     mask_liberi = st.session_state.df_risorse['Occupazione_%'] < 100
                     candidati = st.session_state.df_risorse[mask_liberi]
-                    
                     match_trovato = False
-                    # Cerchiamo chi ha la skill O l'ha usata in un progetto passato
+                    
                     for _, risorsa in candidati.iterrows():
                         ha_skill = skill.lower() in risorsa['Skill'].lower()
                         exp_rilevante = ""
@@ -283,7 +280,7 @@ elif ruolo_utente == "Project Manager":
                             giorni_skill = next((item['Giorni'] for item in fasi if item["Skill"] == skill), 0)
                             costo_totale += (giorni_skill * risorsa['Costo_Giorno'])
                             match_trovato = True
-                            break # Trovata una persona, passiamo alla prossima skill
+                            break 
                             
                     if not match_trovato:
                         team_proposto.append({"Nome": "NESSUNO DISPONIBILE", "Ruolo Coperto": skill, "Motivazione AI": "Nessuna risorsa libera con questa competenza", "Costo Giornaliero": "-"})
@@ -292,11 +289,10 @@ elif ruolo_utente == "Project Manager":
                 st.metric("💰 Costo Interno Progetto", f"€ {costo_totale}")
 
         # =====================================
-        # PAGINA 3: ANALISI SINGOLO E GRAFICO
+        # PAGINA 3: ANALISI SINGOLO E GRAFICO A TORTA
         # =====================================
         elif pagina_pm == "👤 Analisi Profili & Assegnazioni":
             st.title("Indagine e Disponibilità Risorse")
-            st.write("Filtra per seniority, analizza il curriculum storico dei progetti e verifica l'ingombro a calendario.")
             
             c_filtro1, c_filtro2 = st.columns(2)
             seniority_scelta = c_filtro1.selectbox("1. Filtra per Livello (Seniority):", ["Tutti", "Senior", "Mid", "Junior"])
@@ -317,7 +313,7 @@ elif ruolo_utente == "Project Manager":
                 col_storico, col_grafico = st.columns([1, 1])
                 
                 with col_storico:
-                    st.subheader("📚 Storico Progetti (Clienti Reali)")
+                    st.subheader("📚 Storico Progetti (Clienti)")
                     for exp in dati_ricerca['Esperienze']:
                         with st.container():
                             st.markdown(f"🏢 **Cliente:** {exp['Cliente']}")
@@ -326,7 +322,7 @@ elif ruolo_utente == "Project Manager":
                             st.divider()
 
                 with col_grafico:
-                    st.subheader("📅 Previsione di Occupazione")
+                    st.subheader("📅 Riassunto Occupazione")
                     oggi = datetime.today().date()
                     date_range = st.date_input("Analizza periodo:", value=(oggi, oggi + timedelta(days=60)))
                     
@@ -334,10 +330,32 @@ elif ruolo_utente == "Project Manager":
                         start_date, end_date = date_range
                         data_libero = datetime.strptime(dati_ricerca['Disponibile_dal'], "%Y-%m-%d").date()
                         date_list = pd.date_range(start=start_date, end=end_date)
-                        occupazioni = [dati_ricerca['Occupazione_%'] if d.date() < data_libero else 0 for d in date_list]
                         
-                        df_chart = pd.DataFrame({"Data": date_list, "Allocazione %": occupazioni}).set_index("Data")
-                        st.area_chart(df_chart, color="#FF4B4B")
+                        # Calcoliamo i giorni in cui la risorsa è occupata vs libera nel periodo scelto
+                        giorni_occupati = sum(1 for d in date_list if d.date() < data_libero)
+                        giorni_liberi = len(date_list) - giorni_occupati
+                        
+                        if giorni_occupati == 0 and giorni_liberi == 0:
+                            st.info("Seleziona un periodo valido.")
+                        else:
+                            # Creiamo il grafico a torta (Ciambella) con Plotly
+                            df_pie = pd.DataFrame({
+                                "Stato": ["Giorni Allocati", "Giorni Liberi (Bench)"],
+                                "Giorni": [giorni_occupati, giorni_liberi]
+                            })
+                            
+                            fig = px.pie(
+                                df_pie, 
+                                values='Giorni', 
+                                names='Stato', 
+                                hole=0.4, # Crea l'effetto ciambella
+                                color='Stato', 
+                                color_discrete_map={"Giorni Allocati": "#FF4B4B", "Giorni Liberi (Bench)": "#00CC96"}
+                            )
+                            fig.update_layout(margin=dict(t=10, b=10, l=10, r=10))
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                            st.write(f"Nel periodo selezionato ({len(date_list)} giorni): **{giorni_occupati} gg** occupati, **{giorni_liberi} gg** liberi.")
 
         # =====================================
         # PAGINA 4: DATABASE COMPLETO
@@ -345,7 +363,6 @@ elif ruolo_utente == "Project Manager":
         elif pagina_pm == "🗄️ Master Data (Database)":
             st.title("Vista Tabellare Completa")
             st.write("Esportazione e visualizzazione di tutte le anagrafiche aziendali.")
-            # Nascondiamo la colonna "Esperienze" dalla vista grezza perché le liste di dizionari si leggono male
             df_display = st.session_state.df_risorse.drop(columns=['Esperienze'])
             st.dataframe(df_display, use_container_width=True)
             
