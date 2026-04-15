@@ -109,7 +109,7 @@ def leggi_github_readme(url):
 # 3. SIDEBAR (NAVIGAZIONE)
 # ==========================================
 st.sidebar.title("🔐 Accesso Sistema")
-ruolo_utente = st.sidebar.radio("Scegli il tuo ruolo:", ["Project Manager", "Risorsa IT"])
+ruolo_utente = st.sidebar.radio("Scegli il tuo ruolo:", ["Project Manager", "Consultant"])
 
 st.sidebar.markdown("---")
 st.sidebar.write("**Metriche Aziendali**")
@@ -117,7 +117,7 @@ st.sidebar.write(f"👥 Totale Risorse: {len(df_risorse)}")
 st.sidebar.write(f"🟢 Risorse Libere: {len(df_risorse[df_risorse['Occupazione_%'] == 0])}")
 
 # Gestione sicura del cambio ruolo: scollega automaticamente l'altro utente
-if ruolo_utente == "Risorsa IT" and st.session_state.pm_logged_in:
+if ruolo_utente == "Consultant" and st.session_state.pm_logged_in:
     st.session_state.pm_logged_in = False
 if ruolo_utente == "Project Manager" and st.session_state.it_logged_in:
     st.session_state.it_logged_in = False
@@ -127,9 +127,9 @@ if ruolo_utente == "Project Manager" and st.session_state.it_logged_in:
 # ==========================================
 # VISTA 1: PROFILO DELLA RISORSA (DIPENDENTE)
 # ==========================================
-if ruolo_utente == "Risorsa IT":
+if ruolo_utente == "Consultant":
     
-    # --- LOGIN RISORSA IT ---
+    # --- LOGIN Consultant ---
     if not st.session_state.it_logged_in:
         st.title("🔒 Accesso Area Personale IT")
         st.info("Seleziona il tuo nome dal database e inserisci la password aziendale.")
@@ -147,7 +147,7 @@ if ruolo_utente == "Risorsa IT":
                 else:
                     st.error("Password errata. Usa la password condivisa: dev123")
                     
-    # --- DASHBOARD RISORSA IT (Se loggata) ---
+    # --- DASHBOARD Consultant (Se loggata) ---
     else:
         utente_loggato = st.session_state.current_it_user
         st.title(f"👤 Area Personale di {utente_loggato}")
