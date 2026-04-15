@@ -46,20 +46,21 @@ def genera_database():
         })
     return pd.DataFrame(db)
 
-# Inizializziamo il DB in sessione
+# Inizializziamo il DB e le code in sessione
 if "df_risorse" not in st.session_state:
     st.session_state.df_risorse = genera_database()
-
-# Inizializziamo la coda delle notifiche (Skill da approvare)
 if "pending_approvals" not in st.session_state:
     st.session_state.pending_approvals = []
 
-# Inizializziamo lo stato di Login del PM
+# Inizializziamo gli stati di Login
 if "pm_logged_in" not in st.session_state:
     st.session_state.pm_logged_in = False
+if "it_logged_in" not in st.session_state:
+    st.session_state.it_logged_in = False
+if "current_it_user" not in st.session_state:
+    st.session_state.current_it_user = None
 
 df_risorse = st.session_state.df_risorse
-
 
 # ==========================================
 # 2. MOTORE SMART E UTILITIES
@@ -115,52 +116,81 @@ st.sidebar.write("**Metriche Aziendali**")
 st.sidebar.write(f"👥 Totale Risorse: {len(df_risorse)}")
 st.sidebar.write(f"🟢 Risorse Libere: {len(df_risorse[df_risorse['Occupazione_%'] == 0])}")
 
-# Se il PM fa logout dalla sidebar
+# Gestione sicura del cambio ruolo: scollega automaticamente l'altro utente
 if ruolo_utente == "Risorsa IT" and st.session_state.pm_logged_in:
     st.session_state.pm_logged_in = False
+if ruolo_utente == "Project Manager" and st.session_state.it_logged_in:
+    st.session_state.it_logged_in = False
+    st.session_state.current_it_user = None
 
 
 # ==========================================
 # VISTA 1: PROFILO DELLA RISORSA (DIPENDENTE)
 # ==========================================
 if ruolo_utente == "Risorsa IT":
-    st.title("👤 Area Personale")
-    st.info("Qui i dipendenti aggiornano le proprie competenze e disponibilità.")
     
-    utente_loggato = st.selectbox("Seleziona il tuo profilo per la demo:", df_risorse['Nome'].tolist())
-    dati_utente = df_risorse[df_risorse['Nome'] == utente_loggato].iloc[0]
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"**Ruolo Attuale:** {dati_utente['Ruolo']}")
-        st.write(f"**Skill Validate (Ufficiali):** {dati_utente['Skill']}")
-        
-        st.markdown("---")
-        st.write("**Richiedi Nuova Skill**")
-        nuova_skill = st.text_input("Aggiungi competenza (es. GraphQL):", key="input_skill")
-        
-        if st.button("Invia al PM per validazione"):
-            if nuova_skill.strip():
-                st.session_state.pending_approvals.append({
-                    "ID": dati_utente['ID'],
-                    "Nome": dati_utente['Nome'],
-                    "Skill": nuova_skill.strip()
-                })
-                st.success(f"Richiesta inviata! Il PM convaliderà '{nuova_skill}' appena farà l'accesso.")
-            else:
-                st.warning("Inserisci il nome di una competenza.")
+    # --- LOGIN RISORSA IT ---
+    if not st.session_state.it_logged_in:
+        st.title("🔒 Accesso Area Personale IT")
+        st.info("Seleziona il tuo nome dal database e inserisci la password aziendale.")
+        with st.form("login_it_form"):
+            utente_selezionato = st.selectbox("Chi sei?", df_risorse['Nome'].tolist())
+            password_it = st.text_input("Password", type="password")
+            submitted_it = st.form_submit_button("Accedi")
             
-    with col2:
-        st.write(f"**Occupazione Attuale:** {dati_utente['Occupazione_%']}%")
-        st.write(f"**Disponibile dal:** {dati_utente['Disponibile_dal']}")
+            if submitted_it:
+                # Password univoca per tutte le risorse
+                if password_it == "dev123":
+                    st.session_state.it_logged_in = True
+                    st.session_state.current_it_user = utente_selezionato
+                    st.rerun()
+                else:
+                    st.error("Password errata. Usa la password condivisa: dev123")
+                    
+    # --- DASHBOARD RISORSA IT (Se loggata) ---
+    else:
+        utente_loggato = st.session_state.current_it_user
+        st.title(f"👤 Area Personale di {utente_loggato}")
         
-        nuova_disp = st.slider("Aggiorna occupazione prossimo mese (%)", 0, 100, int(dati_utente['Occupazione_%']), step=25)
-        if st.button("Salva Disponibilità"):
-            # Troviamo l'indice corretto e modifichiamo il DataFrame
-            idx = df_risorse.index[df_risorse['Nome'] == utente_loggato].tolist()[0]
-            st.session_state.df_risorse.at[idx, 'Occupazione_%'] = nuova_disp
-            st.success("Calendario aggiornato.")
+        if st.button("Esci (Logout)", key="logout_it_btn"):
+            st.session_state.it_logged_in = False
+            st.session_state.current_it_user = None
             st.rerun()
+            
+        st.markdown("---")
+        
+        dati_utente = df_risorse[df_risorse['Nome'] == utente_loggato].iloc[0]
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**Ruolo Attuale:** {dati_utente['Ruolo']}")
+            st.write(f"**Skill Validate (Ufficiali):** {dati_utente['Skill']}")
+            
+            st.markdown("---")
+            st.write("**Richiedi Nuova Skill**")
+            nuova_skill = st.text_input("Aggiungi competenza (es. GraphQL):", key="input_skill")
+            
+            if st.button("Invia al PM per validazione"):
+                if nuova_skill.strip():
+                    st.session_state.pending_approvals.append({
+                        "ID": dati_utente['ID'],
+                        "Nome": dati_utente['Nome'],
+                        "Skill": nuova_skill.strip()
+                    })
+                    st.success(f"Richiesta inviata! Il PM convaliderà '{nuova_skill}' appena farà l'accesso.")
+                else:
+                    st.warning("Inserisci il nome di una competenza.")
+                
+        with col2:
+            st.write(f"**Occupazione Attuale:** {dati_utente['Occupazione_%']}%")
+            st.write(f"**Disponibile dal:** {dati_utente['Disponibile_dal']}")
+            
+            nuova_disp = st.slider("Aggiorna occupazione prossimo mese (%)", 0, 100, int(dati_utente['Occupazione_%']), step=25)
+            if st.button("Salva Disponibilità"):
+                idx = df_risorse.index[df_risorse['Nome'] == utente_loggato].tolist()[0]
+                st.session_state.df_risorse.at[idx, 'Occupazione_%'] = nuova_disp
+                st.success("Calendario aggiornato.")
+                st.rerun()
 
 
 # ==========================================
@@ -168,16 +198,15 @@ if ruolo_utente == "Risorsa IT":
 # ==========================================
 elif ruolo_utente == "Project Manager":
     
-    # --- SISTEMA DI LOGIN PM ---
+    # --- LOGIN PM ---
     if not st.session_state.pm_logged_in:
         st.title("🔒 Accesso Area Riservata PM")
-        with st.form("login_form"):
+        with st.form("login_pm_form"):
             username = st.text_input("Username")
             password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Accedi")
+            submitted_pm = st.form_submit_button("Accedi")
             
-            if submitted:
-                # Credenziali Harcoded per la demo
+            if submitted_pm:
                 if username == "admin" and password == "admin123":
                     st.session_state.pm_logged_in = True
                     st.rerun()
@@ -188,35 +217,27 @@ elif ruolo_utente == "Project Manager":
     else:
         st.title("🤖 AI Resource Manager - Dashboard PM")
         
-        # Bottone Logout
-        if st.button("Esci (Logout)", key="logout_btn"):
+        if st.button("Esci (Logout)", key="logout_pm_btn"):
             st.session_state.pm_logged_in = False
             st.rerun()
 
-        # --- SISTEMA DI NOTIFICHE E APPROVAZIONE ---
+        # SISTEMA DI NOTIFICHE E APPROVAZIONE
         if len(st.session_state.pending_approvals) > 0:
             st.warning(f"🔔 ATTENZIONE: Hai {len(st.session_state.pending_approvals)} nuove competenze in attesa di validazione!")
             
             with st.expander("Gestisci Approvazioni in Sospeso", expanded=True):
-                # Usiamo una lista temporanea per iterare, così possiamo rimuovere elementi in modo sicuro
                 pending_list = list(st.session_state.pending_approvals)
-                
                 for i, req in enumerate(pending_list):
                     col_n, col_s, col_action = st.columns([3, 4, 3])
                     col_n.write(f"👤 **{req['Nome']}** ({req['ID']})")
                     col_s.write(f"➕ Vuole aggiungere: **{req['Skill']}**")
                     
                     with col_action:
-                        # Bottoni in riga
                         b1, b2 = st.columns(2)
-                        
                         if b1.button("✅ Approva", key=f"ok_{i}"):
-                            # 1. Trova l'utente nel DB
                             idx = st.session_state.df_risorse.index[st.session_state.df_risorse['ID'] == req['ID']].tolist()[0]
-                            # 2. Aggiorna le sue skill
                             skill_attuali = st.session_state.df_risorse.at[idx, 'Skill']
                             st.session_state.df_risorse.at[idx, 'Skill'] = f"{skill_attuali}, {req['Skill']}"
-                            # 3. Rimuove dalla coda
                             st.session_state.pending_approvals.pop(i)
                             st.success(f"Approvata: {req['Skill']} per {req['Nome']}")
                             st.rerun()
