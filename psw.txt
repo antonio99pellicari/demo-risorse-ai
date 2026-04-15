@@ -1,0 +1,5 @@
+Credenziali per l'accesso:
+
+Project Manager --> Username: admin , Psw: admin123
+
+Risorse IT --> per tutti Psw: dev123
