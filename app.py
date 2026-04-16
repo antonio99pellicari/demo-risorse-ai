@@ -445,9 +445,9 @@ elif ruolo_utente == "Project Manager":
                         else:
                             st.markdown("""
                             <div style="display:flex; gap:15px; margin-bottom:15px;">
-                                <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#00CC96; margin-right:5px;"></div> Libero (0%)</div>
-                                <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FFD700; margin-right:5px;"></div> Impegno Parziale (<100%)</div>
-                                <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FF4B4B; margin-right:5px;"></div> Impegnato (100%)</div>
+                                <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FF4B4B; margin-right:5px;"></div> Libero (0%) - Costo</div>
+                                <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FFD700; margin-right:5px;"></div> Impegno Parziale (&lt;100%)</div>
+                                <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#00CC96; margin-right:5px;"></div> Impegnato (100%) - Ricavo</div>
                             </div>
                             """, unsafe_allow_html=True)
                             
@@ -455,17 +455,14 @@ elif ruolo_utente == "Project Manager":
                             for d in date_list:
                                 occ = dati_ricerca['Occupazione_%'] if d.date() < data_libero else 0
                                 if occ == 0:
-                                    bg_color = "#00CC96"
+                                    bg_color = "#FF4B4B" # Rosso (Bench)
                                 elif occ < 100:
-                                    bg_color = "#FFD700"
+                                    bg_color = "#FFD700" # Giallo (Parziale)
                                 else:
-                                    bg_color = "#FF4B4B"
+                                    bg_color = "#00CC96" # Verde (Staffato)
                                 
-                                html_cal += f"""
-                                <div style='width:45px; height:45px; background-color:{bg_color}; display:flex; align-items:center; justify-content:center; border-radius:5px; color:#333; font-weight:bold; cursor:pointer;' title='{d.strftime("%Y-%m-%d")} | Occupazione: {occ}%'>
-                                    {d.day}
-                                </div>
-                                """
+                                # Evita indentazioni o ritorni a capo all'interno della f-string per non far impazzire Markdown
+                                html_cal += f"<div style='width:45px; height:45px; background-color:{bg_color}; display:flex; align-items:center; justify-content:center; border-radius:5px; color:#333; font-weight:bold; cursor:pointer;' title='{d.strftime('%Y-%m-%d')} | Occupazione: {occ}%'>{d.day}</div>"
                             html_cal += "</div>"
                             st.markdown(html_cal, unsafe_allow_html=True)
 
@@ -657,5 +654,5 @@ elif ruolo_utente == "HR (Risorse Umane)":
         elif pagina_hr == "🗄️ Master Data Dipendenti":
             st.title("Anagrafica Completa Dipendenti")
             st.write("Vista raw del database aziendale.")
-            df_display = df.drop(columns=['Esperienze'], errors='ignore')
+            df_display = df.drop(columns=['Esperienze', 'Macro_Area'], errors='ignore')
             st.dataframe(df_display, use_container_width=True)
