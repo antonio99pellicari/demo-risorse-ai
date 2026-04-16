@@ -25,11 +25,14 @@ def genera_database():
     ]
     
     ruoli_skills = [
-        ("Frontend Developer", ["React", "Vue", "TypeScript", "HTML/CSS"]),
-        ("Backend Developer", ["Node.js", "Python", "Java", "Go", "C#"]),
-        ("Fullstack Developer", ["React", "Node.js", "Python", "TypeScript", "SQL"]),
-        ("DevOps Engineer", ["AWS", "Docker", "Kubernetes", "CI/CD", "Terraform"]),
-        ("Data Scientist", ["Python", "Machine Learning", "SQL", "Pandas"])
+        ("Frontend Developer", ["React", "Vue", "TypeScript", "HTML/CSS"], "IT"),
+        ("Backend Developer", ["Node.js", "Python", "Java", "Go", "C#"], "IT"),
+        ("Fullstack Developer", ["React", "Node.js", "Python", "TypeScript", "SQL"], "IT"),
+        ("DevOps Engineer", ["AWS", "Docker", "Kubernetes", "CI/CD", "Terraform"], "IT"),
+        ("Data Scientist", ["Python", "Machine Learning", "SQL", "Pandas"], "Data Science"),
+        ("Data Analyst", ["Excel", "Python", "SQL", "PowerBI"], "Data Science"),
+        ("Business Analyst", ["Excel", "SQL", "BPMN"], "Risk/Management"),
+        ("Project Manager", ["Agile", "Scrum", "Jira"], "Risk/Management")
     ]
     
     clienti_italiani = ["Enel", "TIM", "Poste Italiane", "Intesa Sanpaolo", "Unicredit", "Ferrari", "Eni", "Leonardo", "Ferrovie dello Stato", "Pirelli"]
@@ -37,7 +40,7 @@ def genera_database():
     
     db = []
     for i, nome in enumerate(nomi_completi):
-        ruolo, skills_possibili = random.choice(ruoli_skills)
+        ruolo, skills_possibili, macro_area = random.choice(ruoli_skills)
         skills = random.sample(skills_possibili, k=random.randint(2, len(skills_possibili)))
         seniority = random.choice(["Junior", "Mid", "Senior"])
         costo_base = {"Junior": 150, "Mid": 250, "Senior": 350}[seniority]
@@ -57,6 +60,7 @@ def genera_database():
         db.append({
             "ID": f"RES-{1000+i}",
             "Nome": nome,
+            "Macro_Area": macro_area,
             "Ruolo": f"{seniority} {ruolo}",
             "Seniority": seniority,
             "Skill": ", ".join(skills),
@@ -190,12 +194,16 @@ elif ruolo_utente == "Project Manager":
                     st.rerun()
                 else: st.error("Credenziali errate.")
     else:
+        # Costruzione dinamica del menu PM con badge notifiche
+        num_req_alloc = len(st.session_state.pending_allocations)
+        tab_allocazioni = f"📅 Pianificazione & Allocazioni ({num_req_alloc})" if num_req_alloc > 0 else "📅 Pianificazione & Allocazioni"
+        
         st.sidebar.markdown("---")
         st.sidebar.subheader("🛠️ Navigazione PM")
         pagina_pm = st.sidebar.radio("Vai a:", [
             "🏠 Homepage & Alert", 
             "🚀 Scoping & Staffing AI",
-            "📅 Pianificazione & Allocazioni",
+            tab_allocazioni,
             "👤 Analisi Profili & Assegnazioni", 
             "🗄️ Master Data (Database)"
         ])
@@ -209,6 +217,11 @@ elif ruolo_utente == "Project Manager":
         # =====================================
         if pagina_pm == "🏠 Homepage & Alert":
             st.title("Centro di Controllo Manageriale")
+            
+            # BANNER NOTIFICHE DINAMICO
+            if num_req_alloc > 0:
+                st.warning(f"🔔 **ATTENZIONE:** Hai **{num_req_alloc}** nuove richieste di allocazione in attesa. Vai nella sezione Pianificazione & Allocazioni per gestirle.")
+            
             st.markdown("""
             <div style='background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;'>
                 <h4>👤 Profilo Manager: Admin</h4>
@@ -309,7 +322,7 @@ elif ruolo_utente == "Project Manager":
         # =====================================
         # PM 3: PIANIFICAZIONE & ALLOCAZIONI
         # =====================================
-        elif pagina_pm == "📅 Pianificazione & Allocazioni":
+        elif pagina_pm == tab_allocazioni:
             st.title("Gestione Agende e Allocazioni")
             st.markdown("""
             **Come funziona questa pagina:**
@@ -419,11 +432,42 @@ elif ruolo_utente == "Project Manager":
                         fig = px.pie(df_pie, values='Giorni', names='Stato', hole=0.4, color='Stato', 
                                      color_discrete_map={"Staffato (Ricavo)": "#00CC96", "Panchina (Costo)": "#FF4B4B"})
                         st.plotly_chart(fig, use_container_width=True)
+                
                 with col_dettagli:
                     st.subheader("🗓️ Dettaglio Giornaliero")
                     if len(date_range) == 2:
-                        dettaglio = [{"Data": d.strftime("%Y-%m-%d"), "Giorno": d.strftime("%A"), "Stato": f"Occupato al {dati_ricerca['Occupazione_%']}%" if d.date() < data_libero else "Libero 100%"} for d in date_list]
-                        st.dataframe(pd.DataFrame(dettaglio), height=350)
+                        vista_scelta = st.radio("Seleziona Vista:", ["Tabella Dettagliata", "Calendario Visivo"], horizontal=True)
+                        
+                        if vista_scelta == "Tabella Dettagliata":
+                            dettaglio = [{"Data": d.strftime("%Y-%m-%d"), "Giorno": d.strftime("%A"), "Stato": f"Occupato al {dati_ricerca['Occupazione_%']}%" if d.date() < data_libero else "Libero 100%"} for d in date_list]
+                            st.dataframe(pd.DataFrame(dettaglio), height=350)
+                        
+                        else:
+                            st.markdown("""
+                            <div style="display:flex; gap:15px; margin-bottom:15px;">
+                                <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#00CC96; margin-right:5px;"></div> Libero (0%)</div>
+                                <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FFD700; margin-right:5px;"></div> Impegno Parziale (<100%)</div>
+                                <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FF4B4B; margin-right:5px;"></div> Impegnato (100%)</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            html_cal = "<div style='display:flex; flex-wrap:wrap; gap:5px; margin-top:10px;'>"
+                            for d in date_list:
+                                occ = dati_ricerca['Occupazione_%'] if d.date() < data_libero else 0
+                                if occ == 0:
+                                    bg_color = "#00CC96"
+                                elif occ < 100:
+                                    bg_color = "#FFD700"
+                                else:
+                                    bg_color = "#FF4B4B"
+                                
+                                html_cal += f"""
+                                <div style='width:45px; height:45px; background-color:{bg_color}; display:flex; align-items:center; justify-content:center; border-radius:5px; color:#333; font-weight:bold; cursor:pointer;' title='{d.strftime("%Y-%m-%d")} | Occupazione: {occ}%'>
+                                    {d.day}
+                                </div>
+                                """
+                            html_cal += "</div>"
+                            st.markdown(html_cal, unsafe_allow_html=True)
 
         # =====================================
         # PM 5: MASTER DATA
@@ -484,8 +528,14 @@ elif ruolo_utente == "HR (Risorse Umane)":
             
             with col_chart2:
                 st.subheader("Distribuzione per Ruolo")
-                df['Ruolo_Puro'] = df['Ruolo'].str.replace('Senior ', '').str.replace('Mid ', '').str.replace('Junior ', '')
-                df_ruoli = df['Ruolo_Puro'].value_counts().reset_index()
+                
+                # Nuovo Filtro Macro-Area
+                aree_disponibili = ["Tutte le Aree"] + sorted(list(df['Macro_Area'].unique()))
+                area_selezionata = st.selectbox("Filtra per Macro Area:", aree_disponibili)
+                
+                df_ruoli = df if area_selezionata == "Tutte le Aree" else df[df['Macro_Area'] == area_selezionata]
+                
+                df_ruoli = df_ruoli['Ruolo'].str.replace('Senior ', '').str.replace('Mid ', '').str.replace('Junior ', '').value_counts().reset_index()
                 df_ruoli.columns = ['Ruolo', 'Conteggio']
                 fig2 = px.bar(df_ruoli, x='Ruolo', y='Conteggio', color='Ruolo')
                 st.plotly_chart(fig2, use_container_width=True)
@@ -502,8 +552,11 @@ elif ruolo_utente == "HR (Risorse Umane)":
                 nuovo_nome = col1.text_input("Nome e Cognome")
                 nuova_sen = col2.selectbox("Seniority", ["Junior", "Mid", "Senior"])
                 
-                nuovo_ruolo = col1.selectbox("Titolo Professionale", ["Frontend Developer", "Backend Developer", "Fullstack Developer", "DevOps Engineer", "Data Scientist", "Project Manager", "Business Analyst"])
+                nuovo_ruolo = col1.selectbox("Titolo Professionale", ["Frontend Developer", "Backend Developer", "Fullstack Developer", "DevOps Engineer", "Data Scientist", "Data Analyst", "Project Manager", "Business Analyst"])
                 nuove_skill = col2.text_input("Competenze Iniziali (Separate da virgola, es: React, Node)")
+                
+                # Assegniamo macro_area generica in base al ruolo scelto
+                macro_area_auto = "IT" if "Developer" in nuovo_ruolo or "DevOps" in nuovo_ruolo else "Data Science" if "Data" in nuovo_ruolo else "Risk/Management"
                 
                 costo_gg = col1.number_input("Costo Giornaliero Base (€)", min_value=50, max_value=1000, value=200)
                 
@@ -512,6 +565,7 @@ elif ruolo_utente == "HR (Risorse Umane)":
                         nuovo_dipendente = pd.DataFrame([{
                             "ID": f"RES-{len(df)+1000}",
                             "Nome": nuovo_nome,
+                            "Macro_Area": macro_area_auto,
                             "Ruolo": f"{nuova_sen} {nuovo_ruolo}",
                             "Seniority": nuova_sen,
                             "Skill": nuove_skill,
@@ -527,7 +581,7 @@ elif ruolo_utente == "HR (Risorse Umane)":
                         st.error("Per favore compila Nome e Competenze.")
 
         # =====================================
-        # HR 3: GESTIONE E PROMOZIONI (NEW)
+        # HR 3: GESTIONE E PROMOZIONI
         # =====================================
         elif pagina_hr == "✏️ Gestione e Promozioni":
             st.title("Gestione Dipendente e Promozioni")
@@ -545,9 +599,8 @@ elif ruolo_utente == "HR (Risorse Umane)":
                     
                     nuovo_nome = c1.text_input("Nome e Cognome", value=dati_attuali['Nome'])
                     
-                    # Estrazione del ruolo "puro" per precompilare il menu a tendina
                     ruolo_attuale_puro = dati_attuali['Ruolo'].replace('Senior ', '').replace('Mid ', '').replace('Junior ', '')
-                    ruoli_disponibili = ["Frontend Developer", "Backend Developer", "Fullstack Developer", "DevOps Engineer", "Data Scientist", "Project Manager", "Business Analyst"]
+                    ruoli_disponibili = ["Frontend Developer", "Backend Developer", "Fullstack Developer", "DevOps Engineer", "Data Scientist", "Data Analyst", "Project Manager", "Business Analyst"]
                     if ruolo_attuale_puro not in ruoli_disponibili:
                         ruoli_disponibili.append(ruolo_attuale_puro)
                     
@@ -581,7 +634,7 @@ elif ruolo_utente == "HR (Risorse Umane)":
             st.info("Trattandosi di un modulo disaccoppiato, puoi scaricare il template o fare l'upload massivo per aggiornare le anagrafiche dei dipendenti.")
             
             st.subheader("1. Esporta dati attuali (Per Zucchetti)")
-            df_export = df.drop(columns=['Esperienze', 'Ruolo_Puro'], errors='ignore')
+            df_export = df.drop(columns=['Esperienze', 'Macro_Area'], errors='ignore')
             csv_export = df_export.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Scarica Export Zucchetti (CSV)", data=csv_export, file_name='export_hr_zucchetti.csv', mime='text/csv')
             
@@ -604,5 +657,5 @@ elif ruolo_utente == "HR (Risorse Umane)":
         elif pagina_hr == "🗄️ Master Data Dipendenti":
             st.title("Anagrafica Completa Dipendenti")
             st.write("Vista raw del database aziendale.")
-            df_display = df.drop(columns=['Esperienze', 'Ruolo_Puro'], errors='ignore')
+            df_display = df.drop(columns=['Esperienze'], errors='ignore')
             st.dataframe(df_display, use_container_width=True)
