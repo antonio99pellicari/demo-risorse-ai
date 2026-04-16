@@ -75,7 +75,6 @@ if "pending_approvals" not in st.session_state:
 if "pending_allocations" not in st.session_state:
     st.session_state.pending_allocations = []
 
-# Gestione Sessioni per i 3 Ruoli
 if "pm_logged_in" not in st.session_state: st.session_state.pm_logged_in = False
 if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
 if "hr_logged_in" not in st.session_state: st.session_state.hr_logged_in = False
@@ -112,7 +111,6 @@ def analizza_testo(testo):
 st.sidebar.title("🔐 Accesso Sistema")
 ruolo_utente = st.sidebar.radio("Scegli il tuo ruolo:", ["Project Manager", "HR (Risorse Umane)", "Consulente"])
 
-# Disconnessione automatica quando si cambia tab
 if ruolo_utente != "Project Manager": st.session_state.pm_logged_in = False
 if ruolo_utente != "Consulente": 
     st.session_state.it_logged_in = False
@@ -200,7 +198,7 @@ elif ruolo_utente == "Project Manager":
             "📅 Pianificazione & Allocazioni",
             "👤 Analisi Profili & Assegnazioni", 
             "🗄️ Master Data (Database)"
-        ]) # Rimosso Team HR
+        ])
         
         if st.sidebar.button("🚪 Esci (Logout)"):
             st.session_state.pm_logged_in = False
@@ -222,23 +220,23 @@ elif ruolo_utente == "Project Manager":
             occupate = len(df[df['Occupazione_%'] > 0])
             ferme = tot_risorse - occupate
             
-            costo_ferme_gg = df[df['Occupazione_%'] == 0]['Costo_Giorno'].sum()
+            mancati_incassi_gg = df[df['Occupazione_%'] == 0]['Tariffa_Vendita'].sum()
             revenue_attiva_gg = (df['Tariffa_Vendita'] * (df['Occupazione_%']/100)).sum()
             
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Risorse Totali", tot_risorse)
             c2.metric("Risorse Staffate", occupate)
-            c3.metric("Costo Bench (Giornaliero)", f"€ {costo_ferme_gg:,.2f}")
-            c4.metric("Revenue Attesa (Giornaliera)", f"€ {revenue_attiva_gg:,.2f}")
+            c3.metric("Mancati Incassi Bench (gg)", f"€ {mancati_incassi_gg:,.2f}", help="Ricavo perso giornalmente per le risorse ferme (costo opportunità).")
+            c4.metric("Revenue Attesa (gg)", f"€ {revenue_attiva_gg:,.2f}")
             
             st.markdown("---")
-            st.subheader("📊 Bilancio: Costi Bench vs Revenues")
+            st.subheader("📊 Bilancio Portafoglio: Ricavi Attivi vs Mancati Ricavi")
             df_fin = pd.DataFrame({
-                "Categoria": ["Costi Risorse Ferme (Perdita)", "Revenues Risorse Staffate (Ricavo)"],
-                "Valore Giornaliero": [costo_ferme_gg, revenue_attiva_gg]
+                "Categoria": ["Mancati Ricavi (Bench)", "Ricavi Attivi (Staffati)"],
+                "Valore Giornaliero": [mancati_incassi_gg, revenue_attiva_gg]
             })
             fig_fin = px.pie(df_fin, values='Valore Giornaliero', names='Categoria', hole=0.3,
-                             color='Categoria', color_discrete_map={"Costi Risorse Ferme (Perdita)": "#FF4B4B", "Revenues Risorse Staffate (Ricavo)": "#00CC96"})
+                             color='Categoria', color_discrete_map={"Mancati Ricavi (Bench)": "#FF4B4B", "Ricavi Attivi (Staffati)": "#00CC96"})
             st.plotly_chart(fig_fin, use_container_width=True)
 
         # =====================================
@@ -246,9 +244,9 @@ elif ruolo_utente == "Project Manager":
         # =====================================
         elif pagina_pm == "🚀 Scoping & Staffing AI":
             st.title("🤖 Scoping Dinamico & Scenario Analysis")
-            st.write("Incolla le specifiche. Modifica le giornate o i margini nelle tabelle sottostanti per ricalcolare i costi in tempo reale.")
+            st.info("💡 **Come usare questa sezione per la Demo:** Incolla il testo del progetto. Una volta generate le tabelle, **modifica i giorni o il margine in percentuale direttamente dentro la griglia**. Vedrai il *Breakdown Finanziario* in basso aggiornarsi in tempo reale!")
             
-            testo_da_analizzare = st.text_area("Requisiti di progetto:", height=100)
+            testo_da_analizzare = st.text_area("Requisiti di progetto (Scrivi qui cosa serve al cliente):", height=100)
 
             if st.button("Genera WBS e Team", type="primary") or "wbs_data" in st.session_state:
                 if testo_da_analizzare and "wbs_data" not in st.session_state:
@@ -271,13 +269,13 @@ elif ruolo_utente == "Project Manager":
                     st.session_state.team_data = pd.DataFrame(team_proposto)
 
                 if "wbs_data" in st.session_state:
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.subheader("1. WBS & Stima Tempi")
-                        edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", key="wbs_editor")
-                    with col2:
-                        st.subheader("2. Team Consigliato")
-                        edited_team = st.data_editor(st.session_state.team_data, key="team_editor")
+                    st.markdown("### 1. WBS & Stima Tempi (Tabella Interattiva)")
+                    st.caption("Fai doppio clic sui giorni per modificarli e vedere l'impatto sui costi.")
+                    edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", key="wbs_editor", use_container_width=True)
+                    
+                    st.markdown("### 2. Team Consigliato e Marginalità (Tabella Interattiva)")
+                    st.caption("Fai doppio clic sul margine per applicare uno scenario di vendita diverso.")
+                    edited_team = st.data_editor(st.session_state.team_data, key="team_editor", use_container_width=True)
                     
                     costo_totale_progetto = 0
                     proposta_commerciale = 0
@@ -296,8 +294,12 @@ elif ruolo_utente == "Project Manager":
                             costo_totale_progetto += costo_fase
                             proposta_commerciale += ricavo_fase
                     
-                    st.markdown("---")
-                    st.subheader("💰 Breakdown Finanziario (Aggiornato in Tempo Reale)")
+                    st.markdown("""
+                    <div style='background-color: #e6f3ff; padding: 20px; border-radius: 10px; margin-top: 20px; border-left: 5px solid #0066cc;'>
+                        <h3 style='margin-top: 0;'>💰 Breakdown Finanziario (Aggiornato in Tempo Reale)</h3>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
                     c_fin1, c_fin2, c_fin3 = st.columns(3)
                     c_fin1.metric("Costo Vivo Progetto", f"€ {costo_totale_progetto:,.2f}")
                     c_fin2.metric("Proposta Commerciale", f"€ {proposta_commerciale:,.2f}")
@@ -309,38 +311,78 @@ elif ruolo_utente == "Project Manager":
         # =====================================
         elif pagina_pm == "📅 Pianificazione & Allocazioni":
             st.title("Gestione Agende e Allocazioni")
+            st.markdown("""
+            **Come funziona questa pagina:**
+            Qui decidi su quali progetti lavorano le tue persone. Puoi farlo in due modi:
+            1. **Reagendo:** Accettando le richieste di slot che i consulenti hanno inserito dal loro portale.
+            2. **Agendo (Manuale):** Allocando tu stesso un consulente specificando Cliente, Progetto e Periodo.
+            """)
+            st.divider()
             
+            st.subheader("1. Richieste in attesa dal team")
             if len(st.session_state.pending_allocations) > 0:
-                st.error(f"🔔 Hai {len(st.session_state.pending_allocations)} richieste di allocazione.")
                 for i, req in enumerate(list(st.session_state.pending_allocations)):
                     with st.container():
-                        st.write(f"👤 **{req['Nome']}** richiede il {req['Occupazione']}% per il progetto **{req['Progetto']}** ({req['Dal']} - {req['Al']})")
+                        st.info(f"👤 **{req['Nome']}** richiede il {req['Occupazione']}% per il progetto **{req['Progetto']}** ({req['Dal']} - {req['Al']})")
                         b1, b2 = st.columns(2)
-                        if b1.button("✅ Approva", key=f"alloc_ok_{i}"):
+                        if b1.button("✅ Approva Allocazione", key=f"alloc_ok_{i}"):
                             idx = df.index[df['ID'] == req['ID']].tolist()[0]
                             st.session_state.df_risorse.at[idx, 'Occupazione_%'] = req['Occupazione']
+                            st.session_state.df_risorse.at[idx, 'Disponibile_dal'] = req['Al'].strftime("%Y-%m-%d")
+                            st.session_state.df_risorse.at[idx, 'Esperienze'].append({
+                                "Cliente": "Cliente/Progetto Interno", 
+                                "Progetto": req['Progetto'], 
+                                "Tecnologie_Usate": []
+                            })
                             st.session_state.pending_allocations.pop(i)
                             st.rerun()
                         if b2.button("❌ Rifiuta", key=f"alloc_ko_{i}"):
                             st.session_state.pending_allocations.pop(i)
                             st.rerun()
-                        st.divider()
+            else:
+                st.success("Nessuna richiesta in sospeso dai consulenti.")
+                
+            st.divider()
+            st.subheader("2. Assegnazione Manuale Diretta (Top-Down)")
             
-            st.subheader("Assegnazione Manuale Diretta")
             col_filt1, col_filt2 = st.columns(2)
-            seniority_alloc = col_filt1.selectbox("1. Filtra per Livello:", ["Tutti", "Senior", "Mid", "Junior"], key="sen_alloc")
+            seniority_alloc = col_filt1.selectbox("Filtra per Livello:", ["Tutti", "Senior", "Mid", "Junior"], key="sen_alloc")
             df_alloc_filt = df if seniority_alloc == "Tutti" else df[df['Seniority'] == seniority_alloc]
             
             with st.form("manual_alloc"):
-                r_scelta = st.selectbox("2. Seleziona Consulente:", df_alloc_filt['Nome'].tolist())
-                perc = st.slider("Percentuale %", 0, 100, 100, step=25)
-                if st.form_submit_button("Forza Allocazione a Calendario"):
-                    if r_scelta:
+                r_scelta = st.selectbox("Seleziona Consulente:", df_alloc_filt['Nome'].tolist())
+                
+                c_form1, c_form2 = st.columns(2)
+                cliente_input = c_form1.text_input("Nome Cliente (Es: Enel, Poste)")
+                progetto_input = c_form2.text_input("Tipo Progetto / Lavoro (Es: Sviluppo App, Manutenzione)")
+                tech_input = st.text_input("Tecnologie che utilizzerà (Separate da virgola, es: React, AWS, Java)")
+                
+                c_form3, c_form4 = st.columns(2)
+                oggi = datetime.today()
+                date_range = c_form3.date_input("Periodo di Allocazione", value=(oggi, oggi + timedelta(days=60)))
+                perc = c_form4.slider("Assegna Percentuale di Occupazione %", 0, 100, 100, step=25)
+                
+                submit_alloc = st.form_submit_button("Forza Allocazione a Calendario e Aggiorna CV")
+                
+                if submit_alloc:
+                    if len(date_range) == 2 and cliente_input and progetto_input:
+                        start_date, end_date = date_range
                         idx = df.index[df['Nome'] == r_scelta].tolist()[0]
+                        
                         st.session_state.df_risorse.at[idx, 'Occupazione_%'] = perc
-                        if perc == 0: st.session_state.df_risorse.at[idx, 'Disponibile_dal'] = datetime.now().strftime("%Y-%m-%d")
-                        st.success(f"{r_scelta} allocato al {perc}%!")
-                        st.rerun()
+                        st.session_state.df_risorse.at[idx, 'Disponibile_dal'] = end_date.strftime("%Y-%m-%d")
+                        
+                        tech_list = [t.strip() for t in tech_input.split(",")] if tech_input else []
+                        nuova_esperienza = {
+                            "Cliente": cliente_input,
+                            "Progetto": progetto_input,
+                            "Tecnologie_Usate": tech_list
+                        }
+                        st.session_state.df_risorse.at[idx, 'Esperienze'].append(nuova_esperienza)
+                        
+                        st.success(f"✅ {r_scelta} è stato allocato al {perc}% dal {start_date} al {end_date} per il cliente {cliente_input}. Il suo profilo è stato aggiornato con queste nuove esperienze!")
+                    else:
+                        st.error("Per favore compila tutti i campi testuali e seleziona una data di inizio e fine valida.")
 
         # =====================================
         # PM 4: ANALISI PROFILI
@@ -411,6 +453,7 @@ elif ruolo_utente == "HR (Risorse Umane)":
         pagina_hr = st.sidebar.radio("Vai a:", [
             "🏠 Dashboard HR", 
             "➕ Onboarding Nuovo Assunto",
+            "✏️ Gestione e Promozioni",
             "📥 Integrazione Zucchetti", 
             "🗄️ Master Data Dipendenti"
         ])
@@ -441,7 +484,6 @@ elif ruolo_utente == "HR (Risorse Umane)":
             
             with col_chart2:
                 st.subheader("Distribuzione per Ruolo")
-                # Estrapoliamo il ruolo pulito (togliamo Senior/Mid/Junior dalla stringa)
                 df['Ruolo_Puro'] = df['Ruolo'].str.replace('Senior ', '').str.replace('Mid ', '').str.replace('Junior ', '')
                 df_ruoli = df['Ruolo_Puro'].value_counts().reset_index()
                 df_ruoli.columns = ['Ruolo', 'Conteggio']
@@ -476,7 +518,7 @@ elif ruolo_utente == "HR (Risorse Umane)":
                             "Esperienze": [],
                             "Costo_Giorno": costo_gg,
                             "Tariffa_Vendita": costo_gg * 1.4,
-                            "Occupazione_%": 0, # Nuova assunzione = disponibile
+                            "Occupazione_%": 0, 
                             "Disponibile_dal": datetime.now().strftime("%Y-%m-%d")
                         }])
                         st.session_state.df_risorse = pd.concat([st.session_state.df_risorse, nuovo_dipendente], ignore_index=True)
@@ -485,7 +527,54 @@ elif ruolo_utente == "HR (Risorse Umane)":
                         st.error("Per favore compila Nome e Competenze.")
 
         # =====================================
-        # HR 3: INTEGRAZIONE ZUCCHETTI
+        # HR 3: GESTIONE E PROMOZIONI (NEW)
+        # =====================================
+        elif pagina_hr == "✏️ Gestione e Promozioni":
+            st.title("Gestione Dipendente e Promozioni")
+            st.write("Aggiorna l'anagrafica, promuovi di livello o modifica il costo di una singola risorsa.")
+            
+            nome_ricerca = st.selectbox("Seleziona Dipendente da modificare:", df['Nome'].tolist())
+            
+            if nome_ricerca:
+                idx = df.index[df['Nome'] == nome_ricerca].tolist()[0]
+                dati_attuali = df.iloc[idx]
+                
+                with st.form("form_modifica_dipendente"):
+                    st.subheader(f"Modifica Scheda: {dati_attuali['Nome']}")
+                    c1, c2 = st.columns(2)
+                    
+                    nuovo_nome = c1.text_input("Nome e Cognome", value=dati_attuali['Nome'])
+                    
+                    # Estrazione del ruolo "puro" per precompilare il menu a tendina
+                    ruolo_attuale_puro = dati_attuali['Ruolo'].replace('Senior ', '').replace('Mid ', '').replace('Junior ', '')
+                    ruoli_disponibili = ["Frontend Developer", "Backend Developer", "Fullstack Developer", "DevOps Engineer", "Data Scientist", "Project Manager", "Business Analyst"]
+                    if ruolo_attuale_puro not in ruoli_disponibili:
+                        ruoli_disponibili.append(ruolo_attuale_puro)
+                    
+                    index_sen = ["Junior", "Mid", "Senior"].index(dati_attuali['Seniority'])
+                    nuova_sen = c1.selectbox("Seniority", ["Junior", "Mid", "Senior"], index=index_sen)
+                    
+                    index_ruolo = ruoli_disponibili.index(ruolo_attuale_puro)
+                    nuovo_ruolo = c2.selectbox("Titolo Professionale", ruoli_disponibili, index=index_ruolo)
+                    
+                    nuove_skill = st.text_input("Competenze (Separate da virgola)", value=dati_attuali['Skill'])
+                    
+                    c3, c4 = st.columns(2)
+                    costo_gg = c3.number_input("Costo Giornaliero Base (€)", min_value=50, max_value=2000, value=int(dati_attuali['Costo_Giorno']))
+                    tariffa_vendita = c4.number_input("Tariffa di Vendita (€)", min_value=50, max_value=3000, value=int(dati_attuali['Tariffa_Vendita']))
+                    
+                    if st.form_submit_button("💾 Salva Modifiche al Profilo"):
+                        st.session_state.df_risorse.at[idx, 'Nome'] = nuovo_nome
+                        st.session_state.df_risorse.at[idx, 'Seniority'] = nuova_sen
+                        st.session_state.df_risorse.at[idx, 'Ruolo'] = f"{nuova_sen} {nuovo_ruolo}"
+                        st.session_state.df_risorse.at[idx, 'Skill'] = nuove_skill
+                        st.session_state.df_risorse.at[idx, 'Costo_Giorno'] = costo_gg
+                        st.session_state.df_risorse.at[idx, 'Tariffa_Vendita'] = tariffa_vendita
+                        st.success(f"I dati di {nuovo_nome} sono stati aggiornati con successo nel Master Data!")
+                        st.rerun()
+
+        # =====================================
+        # HR 4: INTEGRAZIONE ZUCCHETTI
         # =====================================
         elif pagina_hr == "📥 Integrazione Zucchetti":
             st.title("Sincronizzazione Software Paghe / Zucchetti")
@@ -510,7 +599,7 @@ elif ruolo_utente == "HR (Risorse Umane)":
                     st.dataframe(new_df.head(5))
 
         # =====================================
-        # HR 4: MASTER DATA
+        # HR 5: MASTER DATA
         # =====================================
         elif pagina_hr == "🗄️ Master Data Dipendenti":
             st.title("Anagrafica Completa Dipendenti")
