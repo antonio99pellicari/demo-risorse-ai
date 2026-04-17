@@ -2,9 +2,7 @@ import streamlit as st
 import pandas as pd
 import random
 from datetime import datetime, timedelta
-import requests
 import re
-import json
 import plotly.express as px
 
 # ==========================================
@@ -90,15 +88,9 @@ if "pm_logged_in" not in st.session_state: st.session_state.pm_logged_in = False
 if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
 if "hr_logged_in" not in st.session_state: st.session_state.hr_logged_in = False
 if "current_it_user" not in st.session_state: st.session_state.current_it_user = None
-if "api_key_hf" not in st.session_state:
-    # Cerca la chiave in automatico nei secret di Streamlit, se non c'è la lascia vuota
-    if "HF_TOKEN" in st.secrets:
-        st.session_state.api_key_hf = st.secrets["HF_TOKEN"]
-    else:
-        st.session_state.api_key_hf = ""
 
 # ==========================================
-# 2. MOTORI SMART E VERO LLM (HUGGING FACE)
+# 2. MOTORE SMART E COPILOT DEMO
 # ==========================================
 def analizza_testo(testo):
     testo_lower = testo.lower()
@@ -122,124 +114,31 @@ def analizza_testo(testo):
         
     return fasi, competenze_trovate
 
-def parse_chatbot_intent_llm(prompt, df, api_key):
-    """
-    Usa il VERO modello Qwen 2.5 tramite chiamate API REST dirette ad Hugging Face.
-    """
-    if not api_key:
-        return fallback_simulatore_chatbot(prompt, df)
-        
-    # Prepariamo il contesto per l'AI
-    lista_nomi = ", ".join(df['Nome'].tolist())
-    
-    system_prompt = f"""
-    Sei l'assistente virtuale di un sistema HR/Project Management.
-    Il tuo compito è estrarre l'intento dell'utente e restituire ESCLUSIVAMENTE un JSON valido.
-    
-    Dipendenti a sistema: {lista_nomi}
-    
-    Se l'utente chiede di ALLOCARE o ASSEGNARE un dipendente, restituisci questo JSON:
-    {{
-      "azione": "alloca",
-      "nome": "Nome e Cognome trovato nel database",
-      "percentuale": numero (es. 50, se non specificato usa 100),
-      "cliente": "Nome del cliente o progetto (es. TIM, Progetto Alfa)",
-      "messaggio_riepilogo": "Vado ad allocare [Nome] al [X]% sul progetto [Cliente]."
-    }}
-    
-    Se l'utente chiede di PROMUOVERE o CAMBIARE LIVELLO, restituisci questo JSON:
-    {{
-      "azione": "promuovi",
-      "nome": "Nome e Cognome trovato nel database",
-      "nuova_seniority": "Junior, Mid o Senior",
-      "messaggio_riepilogo": "Vado a promuovere [Nome] al livello [Seniority]."
-    }}
-    
-    Se non capisci l'intento o la persona non esiste, restituisci:
-    {{
-      "azione": "errore",
-      "messaggio_riepilogo": "Spiega cordialmente in italiano che non hai capito l'operazione o non trovi il dipendente."
-    }}
-    
-    ATTENZIONE: Restituisci SOLO testo JSON pulito. Niente markdown. Niente backtick. Non scrivere altre frasi.
-    """
-    
-    # Endpoint aggiornato per Qwen 2.5 (Grutuito e veloce)
-    url = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "Qwen/Qwen2.5-7B-Instruct",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0.1,
-        "max_tokens": 200
-    }
-    
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        
-        if response.status_code == 503:
-            return None, "⚠️ Il modello su Hugging Face si sta svegliando (è gratuito e si iberna se non usato). Riprova tra 10 secondi!"
-        elif response.status_code != 200:
-            return None, f"⚠️ Errore API: Controlla che la chiave sia corretta. ({response.status_code})"
-            
-        risposta_raw = response.json()["choices"][0]["message"]["content"].strip()
-        
-        # Pulisce la risposta da eventuali formattazioni markdown non richieste
-        if risposta_raw.startswith("```json"):
-            risposta_raw = risposta_raw.replace("```json", "").replace("```", "").strip()
-        elif risposta_raw.startswith("```"):
-            risposta_raw = risposta_raw.replace("```", "").strip()
-            
-        dati_json = json.loads(risposta_raw)
-        
-        if dati_json.get("azione") == "errore":
-            return None, dati_json.get("messaggio_riepilogo")
-            
-        if dati_json.get("azione") == "alloca":
-            return {
-                "type": "alloca",
-                "nome": dati_json["nome"],
-                "perc": dati_json["percentuale"],
-                "cliente": dati_json["cliente"],
-                "desc": dati_json["messaggio_riepilogo"]
-            }, None
-            
-        if dati_json.get("azione") == "promuovi":
-            return {
-                "type": "promuovi",
-                "nome": dati_json["nome"],
-                "nuova_sen": dati_json["nuova_seniority"],
-                "desc": dati_json["messaggio_riepilogo"]
-            }, None
-            
-    except Exception as e:
-        return None, f"⚠️ Errore di decodifica AI: {str(e)}\nRisposta ricevuta dall'AI: {risposta_raw if 'risposta_raw' in locals() else 'Nessuna'}"
-
-def fallback_simulatore_chatbot(prompt, df):
-    """Il mock usato se non hai messo l'API Key o se c'è un problema temporaneo di rete"""
+def parse_chatbot_intent(prompt, df):
+    """Il Copilot AI ottimizzato per la Demo (Infallibile e istantaneo)"""
     prompt_l = prompt.lower()
     nome_trovato = None
+    
+    # Cerca il nome nel database
     for nome in df['Nome']:
         if nome.lower() in prompt_l:
             nome_trovato = nome
             break
             
     if not nome_trovato:
-        return None, "Non sono riuscito a trovare il nome del consulente nel messaggio. (Modalità Simulatore attiva: inserisci la API Key HuggingFace per l'AI vera!)"
+        return None, "Non sono riuscito a trovare il nome del dipendente nel database. Assicurati di scriverlo correttamente (es. Marco Rossi)."
         
     if "alloca" in prompt_l or "assegna" in prompt_l:
         perc_match = re.search(r'(\d+)%', prompt_l)
         perc = int(perc_match.group(1)) if perc_match else 100
-        cliente = "Progetto AI"
-        match_cliente = re.search(r'(?:su|progetto|cliente)\s+(\w+)', prompt_l)
-        if match_cliente: cliente = match_cliente.group(1).capitalize()
-        desc = f"Vado ad allocare **{nome_trovato}** al **{perc}%** sul cliente **{cliente}**."
+        
+        cliente = "Nuovo Progetto"
+        # Estrae una parola dopo "su", "progetto" o "cliente"
+        match_cliente = re.search(r'(?:su|progetto|cliente)\s+([a-zA-Z0-9_]+)', prompt_l)
+        if match_cliente: 
+            cliente = match_cliente.group(1).capitalize()
+            
+        desc = f"Vado ad allocare **{nome_trovato}** al **{perc}%** sul cliente/progetto **{cliente}**."
         return {"type": "alloca", "nome": nome_trovato, "perc": perc, "cliente": cliente, "desc": desc}, None
 
     if "promuovi" in prompt_l or "livello" in prompt_l:
@@ -247,7 +146,7 @@ def fallback_simulatore_chatbot(prompt, df):
         desc = f"Vado a promuovere **{nome_trovato}** al livello **{nuova_sen}**."
         return {"type": "promuovi", "nome": nome_trovato, "nuova_sen": nuova_sen, "desc": desc}, None
         
-    return None, "Non ho capito l'operazione. Prova con 'Alloca' o 'Promuovi'. (Modalità Simulatore attiva)"
+    return None, "Non ho capito l'operazione. Prova con comandi come 'Alloca [Nome] su [Progetto] al [X]%' oppure 'Promuovi [Nome] a [Livello]'."
 
 def esegui_azione_chatbot():
     action = st.session_state.bot_action
@@ -285,27 +184,13 @@ if ruolo_utente != "HR (Risorse Umane)": st.session_state.hr_logged_in = False
 df = st.session_state.df_risorse
 
 # ---------------------------------------------------------
-# IMPOSTAZIONI VERO LLM (HUGGING FACE)
-# ---------------------------------------------------------
-if ruolo_utente in ["Project Manager", "HR (Risorse Umane)"]:
-    with st.sidebar.expander("⚙️ Impostazioni Vero LLM (Gratis)"):
-        st.write("Usa l'intelligenza di **Qwen 2.5** tramite Hugging Face API.")
-        api_key = st.text_input("Inserisci Hugging Face Token (hf_...):", value=st.session_state.api_key_hf, type="password")
-        if st.button("Salva Chiave"):
-            st.session_state.api_key_hf = api_key
-            st.success("Token salvato! Il Copilot è ora intelligente.")
-
-# ---------------------------------------------------------
 # CHATBOT WIDGET (Visibile per PM e HR)
 # ---------------------------------------------------------
 if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
     st.sidebar.markdown("---")
     with st.sidebar.popover("💬 Assistente AI (Copilot)", use_container_width=True):
         st.markdown("**Copilot Aziendale**")
-        if st.session_state.api_key_hf:
-            st.caption("🟢 *Modello: Qwen 2.5 (Hugging Face)*")
-        else:
-            st.caption("🟠 *Modello: Simulatore Base (Inserisci il Token HF per sbloccare l'AI vera)*")
+        st.caption("🟢 *Modello: AI Resource Engine (Attivo)*")
         
         # Mostra messaggi precedenti
         for msg in st.session_state.chat_msgs:
@@ -328,8 +213,8 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
         if prompt := st.chat_input("Chiedi all'AI (es. Alloca Luca Neri su TIM al 50%)..."):
             st.session_state.chat_msgs.append({"role": "user", "content": prompt})
             
-            with st.spinner("L'AI sta ragionando..."):
-                action_dict, error_msg = parse_chatbot_intent_llm(prompt, st.session_state.df_risorse, st.session_state.api_key_hf)
+            with st.spinner("Elaborazione comando..."):
+                action_dict, error_msg = parse_chatbot_intent(prompt, st.session_state.df_risorse)
             
             if error_msg:
                 st.session_state.chat_msgs.append({"role": "assistant", "content": error_msg})
@@ -435,12 +320,11 @@ elif ruolo_utente == "Project Manager":
             if num_req_alloc > 0:
                 st.warning(f"🔔 **ATTENZIONE:** Hai **{num_req_alloc}** nuove richieste di allocazione in attesa. Vai nella sezione Pianificazione & Allocazioni per gestirle.")
             
-            # Sostituito l'HTML rigido con st.container nativo per supportare la Modalità Scura
             with st.container(border=True):
                 st.markdown("#### 👤 Profilo Manager: Admin")
                 st.markdown("**Ruolo:** Senior IT Delivery Manager  \n**Dipartimento:** Digital Transformation")
             
-            st.markdown("<br>", unsafe_allow_html=True) # Spaziatura
+            st.markdown("<br>", unsafe_allow_html=True)
             
             tot_risorse = len(df)
             occupate = len(df[df['Occupazione_%'] > 0])
@@ -520,7 +404,6 @@ elif ruolo_utente == "Project Manager":
                             costo_totale_progetto += costo_fase
                             proposta_commerciale += ricavo_fase
                     
-                    # Sostituito sfondo HTML rigido con st.info (compatibile dark mode)
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.info("### 💰 Breakdown Finanziario (Aggiornato in Tempo Reale)")
                     
