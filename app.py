@@ -90,7 +90,12 @@ if "pm_logged_in" not in st.session_state: st.session_state.pm_logged_in = False
 if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
 if "hr_logged_in" not in st.session_state: st.session_state.hr_logged_in = False
 if "current_it_user" not in st.session_state: st.session_state.current_it_user = None
-if "api_key_hf" not in st.session_state: st.session_state.api_key_hf = ""
+if "api_key_hf" not in st.session_state:
+    # Cerca la chiave in automatico nei secret di Streamlit, se non c'è la lascia vuota
+    if "HF_TOKEN" in st.secrets:
+        st.session_state.api_key_hf = st.secrets["HF_TOKEN"]
+    else:
+        st.session_state.api_key_hf = ""
 
 # ==========================================
 # 2. MOTORI SMART E VERO LLM (HUGGING FACE)
