@@ -119,7 +119,7 @@ def analizza_testo(testo):
 
 def parse_chatbot_intent_llm(prompt, df, api_key):
     """
-    Usa il VERO modello Mistral tramite chiamate API REST dirette ad Hugging Face (non serve installare la libreria!).
+    Usa il VERO modello Qwen 2.5 tramite chiamate API REST dirette ad Hugging Face.
     """
     if not api_key:
         return fallback_simulatore_chatbot(prompt, df)
@@ -159,14 +159,14 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     ATTENZIONE: Restituisci SOLO testo JSON pulito. Niente markdown. Niente backtick. Non scrivere altre frasi.
     """
     
-    # Endpoint standard di Hugging Face per i modelli di chat
-    url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions"
+    # Endpoint aggiornato per Qwen 2.5 (Grutuito e veloce)
+    url = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "mistralai/Mistral-7B-Instruct-v0.3",
+        "model": "Qwen/Qwen2.5-7B-Instruct",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
@@ -176,7 +176,6 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     }
     
     try:
-        # Chiamata HTTP nativa (usa requests, preinstallato)
         response = requests.post(url, headers=headers, json=payload)
         
         if response.status_code == 503:
@@ -285,7 +284,7 @@ df = st.session_state.df_risorse
 # ---------------------------------------------------------
 if ruolo_utente in ["Project Manager", "HR (Risorse Umane)"]:
     with st.sidebar.expander("⚙️ Impostazioni Vero LLM (Gratis)"):
-        st.write("Usa l'intelligenza di **Mistral-7B** tramite Hugging Face API.")
+        st.write("Usa l'intelligenza di **Qwen 2.5** tramite Hugging Face API.")
         api_key = st.text_input("Inserisci Hugging Face Token (hf_...):", value=st.session_state.api_key_hf, type="password")
         if st.button("Salva Chiave"):
             st.session_state.api_key_hf = api_key
@@ -299,7 +298,7 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
     with st.sidebar.popover("💬 Assistente AI (Copilot)", use_container_width=True):
         st.markdown("**Copilot Aziendale**")
         if st.session_state.api_key_hf:
-            st.caption("🟢 *Modello: Mistral-7B (Hugging Face)*")
+            st.caption("🟢 *Modello: Qwen 2.5 (Hugging Face)*")
         else:
             st.caption("🟠 *Modello: Simulatore Base (Inserisci il Token HF per sbloccare l'AI vera)*")
         
@@ -431,12 +430,12 @@ elif ruolo_utente == "Project Manager":
             if num_req_alloc > 0:
                 st.warning(f"🔔 **ATTENZIONE:** Hai **{num_req_alloc}** nuove richieste di allocazione in attesa. Vai nella sezione Pianificazione & Allocazioni per gestirle.")
             
-            st.markdown("""
-            <div style='background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;'>
-                <h4>👤 Profilo Manager: Admin</h4>
-                <p><b>Ruolo:</b> Senior IT Delivery Manager<br><b>Dipartimento:</b> Digital Transformation</p>
-            </div>
-            """, unsafe_allow_html=True)
+            # Sostituito l'HTML rigido con st.container nativo per supportare la Modalità Scura
+            with st.container(border=True):
+                st.markdown("#### 👤 Profilo Manager: Admin")
+                st.markdown("**Ruolo:** Senior IT Delivery Manager  \n**Dipartimento:** Digital Transformation")
+            
+            st.markdown("<br>", unsafe_allow_html=True) # Spaziatura
             
             tot_risorse = len(df)
             occupate = len(df[df['Occupazione_%'] > 0])
@@ -516,11 +515,9 @@ elif ruolo_utente == "Project Manager":
                             costo_totale_progetto += costo_fase
                             proposta_commerciale += ricavo_fase
                     
-                    st.markdown("""
-                    <div style='background-color: #e6f3ff; padding: 20px; border-radius: 10px; margin-top: 20px; border-left: 5px solid #0066cc;'>
-                        <h3 style='margin-top: 0;'>💰 Breakdown Finanziario (Aggiornato in Tempo Reale)</h3>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # Sostituito sfondo HTML rigido con st.info (compatibile dark mode)
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.info("### 💰 Breakdown Finanziario (Aggiornato in Tempo Reale)")
                     
                     c_fin1, c_fin2, c_fin3 = st.columns(3)
                     c_fin1.metric("Costo Vivo Progetto", f"€ {costo_totale_progetto:,.2f}")
