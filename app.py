@@ -4,6 +4,7 @@ import random
 from datetime import datetime, timedelta
 import requests
 import re
+import json
 import plotly.express as px
 
 # ==========================================
@@ -79,13 +80,20 @@ if "pending_approvals" not in st.session_state:
 if "pending_allocations" not in st.session_state:
     st.session_state.pending_allocations = []
 
+# Variabili Chatbot
+if "chat_msgs" not in st.session_state:
+    st.session_state.chat_msgs = [{"role": "assistant", "content": "Ciao! Sono il tuo Copilot AI. Scrivimi un comando, ad esempio:\n- *Alloca Marco Rossi su progetto TIM al 50%*\n- *Promuovi Giulia Bianchi a Senior*"}]
+if "bot_action" not in st.session_state:
+    st.session_state.bot_action = None
+
 if "pm_logged_in" not in st.session_state: st.session_state.pm_logged_in = False
 if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
 if "hr_logged_in" not in st.session_state: st.session_state.hr_logged_in = False
 if "current_it_user" not in st.session_state: st.session_state.current_it_user = None
+if "api_key_hf" not in st.session_state: st.session_state.api_key_hf = ""
 
 # ==========================================
-# 2. MOTORE SMART E AI
+# 2. MOTORI SMART E VERO LLM (HUGGING FACE)
 # ==========================================
 def analizza_testo(testo):
     testo_lower = testo.lower()
@@ -109,6 +117,155 @@ def analizza_testo(testo):
         
     return fasi, competenze_trovate
 
+def parse_chatbot_intent_llm(prompt, df, api_key):
+    """
+    Usa il VERO modello Mistral tramite chiamate API REST dirette ad Hugging Face (non serve installare la libreria!).
+    """
+    if not api_key:
+        return fallback_simulatore_chatbot(prompt, df)
+        
+    # Prepariamo il contesto per l'AI
+    lista_nomi = ", ".join(df['Nome'].tolist())
+    
+    system_prompt = f"""
+    Sei l'assistente virtuale di un sistema HR/Project Management.
+    Il tuo compito è estrarre l'intento dell'utente e restituire ESCLUSIVAMENTE un JSON valido.
+    
+    Dipendenti a sistema: {lista_nomi}
+    
+    Se l'utente chiede di ALLOCARE o ASSEGNARE un dipendente, restituisci questo JSON:
+    {{
+      "azione": "alloca",
+      "nome": "Nome e Cognome trovato nel database",
+      "percentuale": numero (es. 50, se non specificato usa 100),
+      "cliente": "Nome del cliente o progetto (es. TIM, Progetto Alfa)",
+      "messaggio_riepilogo": "Vado ad allocare [Nome] al [X]% sul progetto [Cliente]."
+    }}
+    
+    Se l'utente chiede di PROMUOVERE o CAMBIARE LIVELLO, restituisci questo JSON:
+    {{
+      "azione": "promuovi",
+      "nome": "Nome e Cognome trovato nel database",
+      "nuova_seniority": "Junior, Mid o Senior",
+      "messaggio_riepilogo": "Vado a promuovere [Nome] al livello [Seniority]."
+    }}
+    
+    Se non capisci l'intento o la persona non esiste, restituisci:
+    {{
+      "azione": "errore",
+      "messaggio_riepilogo": "Spiega cordialmente in italiano che non hai capito l'operazione o non trovi il dipendente."
+    }}
+    
+    ATTENZIONE: Restituisci SOLO testo JSON pulito. Niente markdown. Niente backtick. Non scrivere altre frasi.
+    """
+    
+    # Endpoint standard di Hugging Face per i modelli di chat
+    url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "mistralai/Mistral-7B-Instruct-v0.3",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.1,
+        "max_tokens": 200
+    }
+    
+    try:
+        # Chiamata HTTP nativa (usa requests, preinstallato)
+        response = requests.post(url, headers=headers, json=payload)
+        
+        if response.status_code == 503:
+            return None, "⚠️ Il modello su Hugging Face si sta svegliando (è gratuito e si iberna se non usato). Riprova tra 10 secondi!"
+        elif response.status_code != 200:
+            return None, f"⚠️ Errore API: Controlla che la chiave sia corretta. ({response.status_code})"
+            
+        risposta_raw = response.json()["choices"][0]["message"]["content"].strip()
+        
+        # Pulisce la risposta da eventuali formattazioni markdown non richieste
+        if risposta_raw.startswith("```json"):
+            risposta_raw = risposta_raw.replace("```json", "").replace("```", "").strip()
+        elif risposta_raw.startswith("```"):
+            risposta_raw = risposta_raw.replace("```", "").strip()
+            
+        dati_json = json.loads(risposta_raw)
+        
+        if dati_json.get("azione") == "errore":
+            return None, dati_json.get("messaggio_riepilogo")
+            
+        if dati_json.get("azione") == "alloca":
+            return {
+                "type": "alloca",
+                "nome": dati_json["nome"],
+                "perc": dati_json["percentuale"],
+                "cliente": dati_json["cliente"],
+                "desc": dati_json["messaggio_riepilogo"]
+            }, None
+            
+        if dati_json.get("azione") == "promuovi":
+            return {
+                "type": "promuovi",
+                "nome": dati_json["nome"],
+                "nuova_sen": dati_json["nuova_seniority"],
+                "desc": dati_json["messaggio_riepilogo"]
+            }, None
+            
+    except Exception as e:
+        return None, f"⚠️ Errore di decodifica AI: {str(e)}\nRisposta ricevuta dall'AI: {risposta_raw if 'risposta_raw' in locals() else 'Nessuna'}"
+
+def fallback_simulatore_chatbot(prompt, df):
+    """Il mock usato se non hai messo l'API Key o se c'è un problema temporaneo di rete"""
+    prompt_l = prompt.lower()
+    nome_trovato = None
+    for nome in df['Nome']:
+        if nome.lower() in prompt_l:
+            nome_trovato = nome
+            break
+            
+    if not nome_trovato:
+        return None, "Non sono riuscito a trovare il nome del consulente nel messaggio. (Modalità Simulatore attiva: inserisci la API Key HuggingFace per l'AI vera!)"
+        
+    if "alloca" in prompt_l or "assegna" in prompt_l:
+        perc_match = re.search(r'(\d+)%', prompt_l)
+        perc = int(perc_match.group(1)) if perc_match else 100
+        cliente = "Progetto AI"
+        match_cliente = re.search(r'(?:su|progetto|cliente)\s+(\w+)', prompt_l)
+        if match_cliente: cliente = match_cliente.group(1).capitalize()
+        desc = f"Vado ad allocare **{nome_trovato}** al **{perc}%** sul cliente **{cliente}**."
+        return {"type": "alloca", "nome": nome_trovato, "perc": perc, "cliente": cliente, "desc": desc}, None
+
+    if "promuovi" in prompt_l or "livello" in prompt_l:
+        nuova_sen = "Senior" if "senior" in prompt_l else "Mid" if "mid" in prompt_l else "Junior"
+        desc = f"Vado a promuovere **{nome_trovato}** al livello **{nuova_sen}**."
+        return {"type": "promuovi", "nome": nome_trovato, "nuova_sen": nuova_sen, "desc": desc}, None
+        
+    return None, "Non ho capito l'operazione. Prova con 'Alloca' o 'Promuovi'. (Modalità Simulatore attiva)"
+
+def esegui_azione_chatbot():
+    action = st.session_state.bot_action
+    df = st.session_state.df_risorse
+    idx = df.index[df['Nome'] == action['nome']].tolist()[0]
+    
+    if action['type'] == 'alloca':
+        df.at[idx, 'Occupazione_%'] = action['perc']
+        disp_data = datetime.now() + timedelta(days=30)
+        df.at[idx, 'Disponibile_dal'] = disp_data.strftime("%Y-%m-%d")
+        df.at[idx, 'Esperienze'].append({"Cliente": action['cliente'], "Progetto": "Assegnazione da AI Copilot", "Tecnologie_Usate": []})
+        msg = f"✅ Successo: **{action['nome']}** assegnato a **{action['cliente']}**."
+        
+    elif action['type'] == 'promuovi':
+        ruolo_puro = df.at[idx, 'Ruolo'].replace('Senior ', '').replace('Mid ', '').replace('Junior ', '')
+        df.at[idx, 'Seniority'] = action['nuova_sen']
+        df.at[idx, 'Ruolo'] = f"{action['nuova_sen']} {ruolo_puro}"
+        msg = f"✅ Successo: **{action['nome']}** è stato promosso a **{action['nuova_sen']}**."
+
+    st.session_state.bot_action = None
+    st.session_state.chat_msgs.append({"role": "assistant", "content": msg})
+
 # ==========================================
 # 3. SIDEBAR BASE E LOGOUT INCROCIATI
 # ==========================================
@@ -122,6 +279,60 @@ if ruolo_utente != "Consulente":
 if ruolo_utente != "HR (Risorse Umane)": st.session_state.hr_logged_in = False
 
 df = st.session_state.df_risorse
+
+# ---------------------------------------------------------
+# IMPOSTAZIONI VERO LLM (HUGGING FACE)
+# ---------------------------------------------------------
+if ruolo_utente in ["Project Manager", "HR (Risorse Umane)"]:
+    with st.sidebar.expander("⚙️ Impostazioni Vero LLM (Gratis)"):
+        st.write("Usa l'intelligenza di **Mistral-7B** tramite Hugging Face API.")
+        api_key = st.text_input("Inserisci Hugging Face Token (hf_...):", value=st.session_state.api_key_hf, type="password")
+        if st.button("Salva Chiave"):
+            st.session_state.api_key_hf = api_key
+            st.success("Token salvato! Il Copilot è ora intelligente.")
+
+# ---------------------------------------------------------
+# CHATBOT WIDGET (Visibile per PM e HR)
+# ---------------------------------------------------------
+if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
+    st.sidebar.markdown("---")
+    with st.sidebar.popover("💬 Assistente AI (Copilot)", use_container_width=True):
+        st.markdown("**Copilot Aziendale**")
+        if st.session_state.api_key_hf:
+            st.caption("🟢 *Modello: Mistral-7B (Hugging Face)*")
+        else:
+            st.caption("🟠 *Modello: Simulatore Base (Inserisci il Token HF per sbloccare l'AI vera)*")
+        
+        # Mostra messaggi precedenti
+        for msg in st.session_state.chat_msgs:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
+        
+        # Mostra UI di Conferma Azione (se presente)
+        if st.session_state.bot_action:
+            st.info(st.session_state.bot_action['desc'])
+            col_ok, col_ko = st.columns(2)
+            if col_ok.button("✅ Esegui"):
+                esegui_azione_chatbot()
+                st.rerun()
+            if col_ko.button("❌ Annulla"):
+                st.session_state.bot_action = None
+                st.session_state.chat_msgs.append({"role": "assistant", "content": "Operazione annullata. Posso aiutarti in altro?"})
+                st.rerun()
+
+        # Input utente
+        if prompt := st.chat_input("Chiedi all'AI (es. Alloca Luca Neri su TIM al 50%)..."):
+            st.session_state.chat_msgs.append({"role": "user", "content": prompt})
+            
+            with st.spinner("L'AI sta ragionando..."):
+                action_dict, error_msg = parse_chatbot_intent_llm(prompt, st.session_state.df_risorse, st.session_state.api_key_hf)
+            
+            if error_msg:
+                st.session_state.chat_msgs.append({"role": "assistant", "content": error_msg})
+            else:
+                st.session_state.bot_action = action_dict
+                st.session_state.chat_msgs.append({"role": "assistant", "content": "Ecco cosa ho capito. Confermi l'esecuzione?"})
+            st.rerun()
 
 # ==========================================
 # VISTA 1: CONSULENTE
@@ -194,7 +405,6 @@ elif ruolo_utente == "Project Manager":
                     st.rerun()
                 else: st.error("Credenziali errate.")
     else:
-        # Costruzione dinamica del menu PM con badge notifiche
         num_req_alloc = len(st.session_state.pending_allocations)
         tab_allocazioni = f"📅 Pianificazione & Allocazioni ({num_req_alloc})" if num_req_alloc > 0 else "📅 Pianificazione & Allocazioni"
         
@@ -218,7 +428,6 @@ elif ruolo_utente == "Project Manager":
         if pagina_pm == "🏠 Homepage & Alert":
             st.title("Centro di Controllo Manageriale")
             
-            # BANNER NOTIFICHE DINAMICO
             if num_req_alloc > 0:
                 st.warning(f"🔔 **ATTENZIONE:** Hai **{num_req_alloc}** nuove richieste di allocazione in attesa. Vai nella sezione Pianificazione & Allocazioni per gestirle.")
             
@@ -461,7 +670,6 @@ elif ruolo_utente == "Project Manager":
                                 else:
                                     bg_color = "#00CC96" # Verde (Staffato)
                                 
-                                # Evita indentazioni o ritorni a capo all'interno della f-string per non far impazzire Markdown
                                 html_cal += f"<div style='width:45px; height:45px; background-color:{bg_color}; display:flex; align-items:center; justify-content:center; border-radius:5px; color:#333; font-weight:bold; cursor:pointer;' title='{d.strftime('%Y-%m-%d')} | Occupazione: {occ}%'>{d.day}</div>"
                             html_cal += "</div>"
                             st.markdown(html_cal, unsafe_allow_html=True)
@@ -526,7 +734,6 @@ elif ruolo_utente == "HR (Risorse Umane)":
             with col_chart2:
                 st.subheader("Distribuzione per Ruolo")
                 
-                # Nuovo Filtro Macro-Area
                 aree_disponibili = ["Tutte le Aree"] + sorted(list(df['Macro_Area'].unique()))
                 area_selezionata = st.selectbox("Filtra per Macro Area:", aree_disponibili)
                 
@@ -552,7 +759,6 @@ elif ruolo_utente == "HR (Risorse Umane)":
                 nuovo_ruolo = col1.selectbox("Titolo Professionale", ["Frontend Developer", "Backend Developer", "Fullstack Developer", "DevOps Engineer", "Data Scientist", "Data Analyst", "Project Manager", "Business Analyst"])
                 nuove_skill = col2.text_input("Competenze Iniziali (Separate da virgola, es: React, Node)")
                 
-                # Assegniamo macro_area generica in base al ruolo scelto
                 macro_area_auto = "IT" if "Developer" in nuovo_ruolo or "DevOps" in nuovo_ruolo else "Data Science" if "Data" in nuovo_ruolo else "Risk/Management"
                 
                 costo_gg = col1.number_input("Costo Giornaliero Base (€)", min_value=50, max_value=1000, value=200)
