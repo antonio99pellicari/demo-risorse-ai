@@ -448,7 +448,7 @@ elif ruolo_utente == "Project Manager":
                              color='Categoria', color_discrete_map={"Mancati Ricavi (Bench)": "#FF4B4B", "Ricavi Attivi (Staffati)": "#00CC96"})
             st.plotly_chart(fig_fin, use_container_width=True)
 
-                elif pagina_pm == "🚀 Scoping & Staffing AI":
+        elif pagina_pm == "🚀 Scoping & Staffing AI":
             st.title("🤖 Scoping Dinamico & Scenario Analysis")
             
             st.info("""
