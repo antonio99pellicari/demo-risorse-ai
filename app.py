@@ -110,7 +110,7 @@ def analizza_testo(testo):
     competenze_trovate = []
     regole = {
         "react": ("React", 15), "vue": ("Vue", 12), "angular": ("Angular", 15),
-        "node": ("Node.js", 20), "python": ("Python", 18), "java ": ("Java", 25),
+        "node": ("Node.js", 20), "python": ("Python", 18), "java": ("Java", 25),
         "aws": ("AWS", 10), "docker": ("Docker", 5), "kubernetes": ("Kubernetes", 10),
         "machine learning": ("Machine Learning", 20), "sql": ("SQL", 8), "typescript": ("TypeScript", 10)
     }
@@ -121,10 +121,7 @@ def analizza_testo(testo):
             competenze_trovate.append(skill)
             fasi.append({"Fase": f"Sviluppo {skill}", "Skill": skill, "Giorni": giorni})
             
-    if not fasi:
-        fasi = [{"Fase": "Analisi e Setup", "Skill": "Node.js", "Giorni": 10}]
-        competenze_trovate = ["Node.js"]
-        
+    # RIMOSSO IL FALLBACK NODE.JS: ora restituisce vuoto se non trova match
     return fasi, competenze_trovate
 
 def fallback_simulatore_chatbot(prompt, df):
@@ -461,11 +458,26 @@ elif ruolo_utente == "Project Manager":
             - **Futuro:** Guardrail, approval workflow AI, audit log e feedback loop.
             """)
             
-            testo_da_analizzare = st.text_area("Requisiti di progetto (Inserisci il brief da valutare col Motore Deterministico):", height=100)
+            # Bottone di comodità per le demo
+            if st.button("📝 Carica Brief di Esempio (per Demo)"):
+                st.session_state.temp_brief = "Il cliente ha richiesto una nuova piattaforma web. Il frontend sarà in React e TypeScript. Per il backend necessitiamo di Python e database SQL. L'infrastruttura andrà portata su AWS."
+            
+            default_brief = st.session_state.get("temp_brief", "")
+            
+            testo_da_analizzare = st.text_area("Requisiti di progetto (Inserisci il brief da valutare col Motore Deterministico):", value=default_brief, height=100)
 
-            if st.button("Genera WBS e Team", type="primary") or "wbs_data" in st.session_state:
-                if testo_da_analizzare and "wbs_data" not in st.session_state:
-                    fasi, skill_richieste = analizza_testo(testo_da_analizzare)
+            # Rimuove il brief temporaneo dopo averlo mostrato per evitare che resti bloccato
+            if "temp_brief" in st.session_state:
+                del st.session_state.temp_brief
+
+            if st.button("Genera WBS e Team", type="primary"):
+                fasi, skill_richieste = analizza_testo(testo_da_analizzare)
+                
+                if not fasi:
+                    st.warning("⚠️ Il Motore Deterministico non ha rilevato tecnologie specifiche. Prova a inserire termini tecnici (es. React, Python, AWS, Node, SQL) o usa il 'Brief di Esempio'.")
+                    if "wbs_data" in st.session_state: del st.session_state.wbs_data
+                    if "team_data" in st.session_state: del st.session_state.team_data
+                else:
                     st.session_state.wbs_data = pd.DataFrame(fasi)
                     
                     team_proposto = []
@@ -481,25 +493,25 @@ elif ruolo_utente == "Project Manager":
                             team_proposto.append({"Skill": skill, "Nome": "DA ASSUMERE", "Costo_gg": 300, "Margine_%": 30})
                     st.session_state.team_data = pd.DataFrame(team_proposto)
 
-                if "wbs_data" in st.session_state:
-                    st.markdown("### 1. WBS & Stima Tempi")
-                    edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", key="wbs_editor", use_container_width=True)
-                    st.markdown("### 2. Team Consigliato e Marginalità")
-                    edited_team = st.data_editor(st.session_state.team_data, key="team_editor", use_container_width=True)
-                    
-                    costo_totale_progetto, proposta_commerciale = 0, 0
-                    for idx, row in edited_wbs.iterrows():
-                        membro = edited_team[edited_team['Skill'] == row['Skill']]
-                        if not membro.empty:
-                            costo_fase = row['Giorni'] * membro.iloc[0]['Costo_gg']
-                            costo_totale_progetto += costo_fase
-                            proposta_commerciale += costo_fase * (1 + (membro.iloc[0]['Margine_%'] / 100))
-                    
-                    st.success("### 💰 Breakdown Finanziario (Tempo Reale)")
-                    c_fin1, c_fin2, c_fin3 = st.columns(3)
-                    c_fin1.metric("Costo Vivo Progetto", f"€ {costo_totale_progetto:,.2f}")
-                    c_fin2.metric("Proposta Commerciale", f"€ {proposta_commerciale:,.2f}")
-                    c_fin3.metric("Margine Netto Finale", f"€ {proposta_commerciale - costo_totale_progetto:,.2f}")
+            if "wbs_data" in st.session_state and not st.session_state.wbs_data.empty:
+                st.markdown("### 1. WBS & Stima Tempi")
+                edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", key="wbs_editor", use_container_width=True)
+                st.markdown("### 2. Team Consigliato e Marginalità")
+                edited_team = st.data_editor(st.session_state.team_data, key="team_editor", use_container_width=True)
+                
+                costo_totale_progetto, proposta_commerciale = 0, 0
+                for idx, row in edited_wbs.iterrows():
+                    membro = edited_team[edited_team['Skill'] == row['Skill']]
+                    if not membro.empty:
+                        costo_fase = row['Giorni'] * membro.iloc[0]['Costo_gg']
+                        costo_totale_progetto += costo_fase
+                        proposta_commerciale += costo_fase * (1 + (membro.iloc[0]['Margine_%'] / 100))
+                
+                st.success("### 💰 Breakdown Finanziario (Tempo Reale)")
+                c_fin1, c_fin2, c_fin3 = st.columns(3)
+                c_fin1.metric("Costo Vivo Progetto", f"€ {costo_totale_progetto:,.2f}")
+                c_fin2.metric("Proposta Commerciale", f"€ {proposta_commerciale:,.2f}")
+                c_fin3.metric("Margine Netto Finale", f"€ {proposta_commerciale - costo_totale_progetto:,.2f}")
 
         elif pagina_pm == tab_allocazioni:
             st.title("Gestione Agende e Allocazioni")
