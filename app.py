@@ -457,31 +457,35 @@ elif ruolo_utente == "Project Manager":
         # =====================================
         elif pagina_pm == "👥 Pianificazione Team (Scheduling)":
             st.title("Scheduling Assistant Team")
-            st.write("Componi il tuo team e verifica la disponibilità incrociata, simile all'assistente di Microsoft Teams.")
+            st.write("Componi il tuo team e verifica la disponibilità incrociata.")
             
             c_f1, c_f2 = st.columns(2)
             filtro_sen = c_f1.multiselect("Filtra per Seniority:", ["Junior", "Mid", "Senior"], default=["Senior", "Mid", "Junior"])
             df_filtered = df[df['Seniority'].isin(filtro_sen)] if filtro_sen else df
             
             team_selezionato = c_f2.multiselect("Seleziona le risorse per il Team:", df_filtered['Nome'].tolist())
-            mese_analisi = st.date_input("Mese di riferimento (Inizio Orizzonte):", value=datetime.today().replace(day=1))
             
-            if team_selezionato:
+            oggi = datetime.today()
+            orizzonte = st.date_input("Orizzonte temporale di analisi (Inizio - Fine):", value=(oggi, oggi + timedelta(days=30)))
+            
+            if team_selezionato and len(orizzonte) == 2:
+                start_date, end_date = orizzonte
                 st.markdown("---")
-                # Costruzione della Matrice (Heatmap HTML)
-                start_date = mese_analisi
-                _, num_days = calendar.monthrange(start_date.year, start_date.month)
                 
-                # Header della tabella HTML
+                # Genera la lista esatta dei giorni tra start_date ed end_date
+                date_list = pd.date_range(start=start_date, end=end_date)
+                
+                # Costruzione della Matrice (Heatmap HTML)
                 html_matrix = """
                 <div style='overflow-x: auto;'>
                 <table style='width: 100%; border-collapse: collapse; text-align: center; font-size: 12px;'>
                     <thead>
                         <tr style='background-color: #2E3338; color: white;'>
-                            <th style='padding: 10px; text-align: left; min-width: 150px;'>Membro Team</th>
+                            <th style='padding: 10px; text-align: left; min-width: 150px; border: 1px solid #444;'>Membro Team</th>
                 """
-                for day in range(1, num_days + 1):
-                    html_matrix += f"<th style='padding: 5px; width: 25px;'>{day}</th>"
+                # Intestazioni delle colonne con "GG/MM" reale
+                for d in date_list:
+                    html_matrix += f"<th style='padding: 5px; width: 35px; border: 1px solid #444; font-size: 11px;'>{d.strftime('%d/%m')}</th>"
                 html_matrix += "</tr></thead><tbody>"
                 
                 # Righe per ogni membro
@@ -490,13 +494,14 @@ elif ruolo_utente == "Project Manager":
                     data_libero = datetime.strptime(r_dati['Disponibile_dal'], "%Y-%m-%d").date()
                     occ_attuale = r_dati['Occupazione_%']
                     
-                    html_matrix += f"<tr><td style='padding: 10px; text-align: left; border-bottom: 1px solid #444;'><b>{nome}</b><br><span style='font-size:10px; color:#888;'>{r_dati['Ruolo']}</span></td>"
+                    html_matrix += f"<tr><td style='padding: 10px; text-align: left; border: 1px solid #444;'><b>{nome}</b><br><span style='font-size:10px; color:#888;'>{r_dati['Ruolo']}</span></td>"
                     
-                    for day in range(1, num_days + 1):
-                        current_day = start_date.replace(day=day)
-                        # Salta i weekend (visivamente grigi)
+                    for d in date_list:
+                        current_day = d.date()
+                        
+                        # Salta i weekend (visivamente grigi scuro)
                         if current_day.weekday() >= 5:
-                            bg_color = "#333333" # Grigio per Sab/Dom
+                            bg_color = "#333333" 
                         else:
                             # Logica colori Teams
                             if current_day < data_libero:
@@ -506,7 +511,8 @@ elif ruolo_utente == "Project Manager":
                             else:
                                 bg_color = "#FF4B4B" # Dopo la data di fine progetto è Bench (Rosso)
 
-                        html_matrix += f"<td style='background-color: {bg_color}; border: 1px solid #444; border-bottom: 1px solid #444;'></td>"
+                        # Mostra il giorno del mese dentro la cella in piccolino per maggior chiarezza visiva
+                        html_matrix += f"<td style='background-color: {bg_color}; border: 1px solid #444; color: rgba(255,255,255,0.3); font-size: 9px;'>{current_day.day}</td>"
                     html_matrix += "</tr>"
                     
                 html_matrix += "</tbody></table></div>"
