@@ -72,6 +72,13 @@ def genera_database():
         })
     return pd.DataFrame(db)
 
+def estrai_progetto_attuale(row):
+    """Estrae il progetto corrente se la risorsa è occupata"""
+    if row.get('Occupazione_%', 0) > 0 and isinstance(row.get('Esperienze', []), list) and len(row['Esperienze']) > 0:
+        ult = row['Esperienze'][-1]
+        return f"{ult.get('Cliente', 'N/D')} - {ult.get('Progetto', 'N/D')}"
+    return "Disponibile (Bench)"
+
 if "df_risorse" not in st.session_state: st.session_state.df_risorse = genera_database()
 if "pending_approvals" not in st.session_state: st.session_state.pending_approvals = []
 if "pending_allocations" not in st.session_state: st.session_state.pending_allocations = []
@@ -114,7 +121,6 @@ def analizza_testo(testo):
     return fasi, competenze_trovate
 
 def parse_chatbot_intent(prompt, df):
-    """Il Copilot AI ottimizzato per estrarre correttamente i clienti e gestire i dati"""
     prompt_l = prompt.lower()
     nome_trovato = None
     
@@ -269,13 +275,14 @@ if ruolo_utente == "Consulente":
             st.rerun()
             
         dati_utente = df[df['Nome'] == st.session_state.current_it_user].iloc[0]
+        prog_att = estrai_progetto_attuale(dati_utente)
         
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("Le tue Info")
             st.write(f"**Qualifica:** {dati_utente['Ruolo']}")
             st.write(f"**Skill Validate:** {dati_utente['Skill']}")
-            st.write(f"**Stato:** Occupato al {dati_utente['Occupazione_%']}%")
+            st.write(f"**Stato:** Occupato al {dati_utente['Occupazione_%']}% su **{prog_att}**")
             st.markdown("---")
             st.write("**Richiedi Validazione Skill**")
             nuova_skill = st.text_input("Aggiungi competenza (es. GraphQL):")
@@ -513,9 +520,12 @@ elif ruolo_utente == "Project Manager":
                     cols = st.columns(cols_per_row)
                     for j, nome in enumerate(team_selezionato[i:i+cols_per_row]):
                         with cols[j]:
-                            st.markdown(f"<h5 style='text-align:center; color:#1E88E5; margin-bottom:10px;'>{nome}</h5>", unsafe_allow_html=True)
-                            
                             r_dati = df[df['Nome'] == nome].iloc[0]
+                            prog_att = estrai_progetto_attuale(r_dati)
+                            
+                            st.markdown(f"<h5 style='text-align:center; color:#1E88E5; margin-bottom:2px;'>{nome}</h5>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='text-align:center; font-size:11px; color:#888; margin-top:0px; margin-bottom:10px;'>{prog_att}</p>", unsafe_allow_html=True)
+                            
                             data_libero = datetime.strptime(r_dati['Disponibile_dal'], "%Y-%m-%d").date()
                             occ_attuale = r_dati['Occupazione_%']
                             
@@ -547,10 +557,12 @@ elif ruolo_utente == "Project Manager":
             nome_ricerca = st.selectbox("Seleziona Consulente:", df['Nome'].tolist())
             if nome_ricerca:
                 dati_ricerca = df[df['Nome'] == nome_ricerca].iloc[0]
+                prog_att = estrai_progetto_attuale(dati_ricerca)
+                
                 c1, c2, c3 = st.columns(3)
                 c1.info(f"**Qualifica:** {dati_ricerca['Ruolo']}")
                 c2.success(f"**Skills:** {dati_ricerca['Skill']}")
-                c3.warning(f"**Stato Attuale:** Occupato {dati_ricerca['Occupazione_%']}%")
+                c3.warning(f"**Stato Attuale:** Occupato {dati_ricerca['Occupazione_%']}% | **Progetto:** {prog_att}")
                 
                 st.markdown("---")
                 st.subheader("🗓️ Calendario Visuale (Mensile)")
@@ -612,7 +624,10 @@ elif ruolo_utente == "Project Manager":
 
         elif pagina_pm == "🗄️ Master Data (Database)":
             st.title("Vista Tabellare Completa")
-            st.dataframe(df.drop(columns=['Esperienze']), use_container_width=True)
+            df_display = df.copy()
+            df_display['Progetto_Attuale'] = df_display.apply(estrai_progetto_attuale, axis=1)
+            df_display = df_display.drop(columns=['Esperienze'], errors='ignore')
+            st.dataframe(df_display, use_container_width=True)
 
 # ==========================================
 # VISTA 3: HR (RISORSE UMANE)
@@ -723,6 +738,9 @@ elif ruolo_utente == "HR (Risorse Umane)":
             if nome_ricerca:
                 idx = df.index[df['Nome'] == nome_ricerca].tolist()[0]
                 dati_attuali = df.iloc[idx]
+                prog_att = estrai_progetto_attuale(dati_attuali)
+                
+                st.info(f"💡 Attualmente: **{prog_att}** (Occupato al {dati_attuali['Occupazione_%']}%)")
                 
                 with st.form("form_modifica_dipendente"):
                     st.subheader(f"Modifica Scheda: {dati_attuali['Nome']}")
@@ -788,5 +806,7 @@ elif ruolo_utente == "HR (Risorse Umane)":
         elif pagina_hr == "🗄️ Master Data Dipendenti":
             st.title("Anagrafica Completa Dipendenti")
             st.write("Vista raw del database aziendale.")
-            df_display = df.drop(columns=['Esperienze', 'Macro_Area'], errors='ignore')
+            df_display = df.copy()
+            df_display['Progetto_Attuale'] = df_display.apply(estrai_progetto_attuale, axis=1)
+            df_display = df_display.drop(columns=['Esperienze', 'Macro_Area'], errors='ignore')
             st.dataframe(df_display, use_container_width=True)
