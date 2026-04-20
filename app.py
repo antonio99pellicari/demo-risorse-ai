@@ -11,7 +11,52 @@ import json
 # ==========================================
 # 1. INIZIALIZZAZIONE DATI E SESSIONI
 # ==========================================
-st.set_page_config(page_title="AI Resource Manager", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="AI Resource Manager", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
+
+# --- INIEZIONE CSS SAAS (MODERN DARK THEME) ---
+st.markdown("""
+<style>
+    /* Sfondo e font di base */
+    .stApp { font-family: 'Inter', sans-serif; }
+    
+    /* Stile per i bottoni primari */
+    .stButton>button {
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    /* KPI Cards personalizzate */
+    .kpi-card {
+        background-color: #1E2127;
+        padding: 20px;
+        border-radius: 12px;
+        border-left: 5px solid #1E88E5;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        margin-bottom: 20px;
+    }
+    .kpi-card.green { border-left-color: #00CC96; }
+    .kpi-card.red { border-left-color: #FF4B4B; }
+    .kpi-card.orange { border-left-color: #FFD700; }
+    .kpi-card h3 { margin-top: 0; font-size: 13px; color: #9BA1A6; text-transform: uppercase; letter-spacing: 1px;}
+    .kpi-card h2 { margin: 0; font-size: 28px; color: #FFFFFF; font-weight: 700;}
+    
+    /* Stile per le Tabs di Streamlit */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: transparent;
+        border-radius: 4px 4px 0px 0px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        font-size: 16px;
+        font-weight: 600;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 @st.cache_data
 def genera_database():
@@ -87,14 +132,11 @@ if "pending_allocations" not in st.session_state: st.session_state.pending_alloc
 if "cal_month_idx" not in st.session_state: st.session_state.cal_month_idx = 0
 if "team_cal_idx" not in st.session_state: st.session_state.team_cal_idx = 0
 
-# Variabili Chatbot e API Key Groq preimpostata
+# Variabili Chatbot
 if "chat_msgs" not in st.session_state:
     st.session_state.chat_msgs = [{"role": "assistant", "content": "Ciao! Sono il tuo Copilot AI. Scrivimi un comando, ad esempio:\n- *Alloca Marco Rossi su TIM al 50%*\n- *Promuovi Giulia Bianchi a Senior*"}]
 if "bot_action" not in st.session_state: st.session_state.bot_action = None
-
-# CHIAVE GROQ INSERITA DIRETTAMENTE
-if "groq_api_key" not in st.session_state: 
-    st.session_state.groq_api_key = "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"
+if "groq_api_key" not in st.session_state: st.session_state.groq_api_key = "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"
 
 if "pm_logged_in" not in st.session_state: st.session_state.pm_logged_in = False
 if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
@@ -121,7 +163,6 @@ def analizza_testo(testo):
             competenze_trovate.append(skill)
             fasi.append({"Fase": f"Sviluppo {skill}", "Skill": skill, "Giorni": giorni})
             
-    # RIMOSSO IL FALLBACK NODE.JS: ora restituisce vuoto se non trova match
     return fasi, competenze_trovate
 
 def fallback_simulatore_chatbot(prompt, df):
@@ -172,21 +213,18 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {
-        "model": "llama-3.1-8b-instant", # Modello più recente e stabile
+        "model": "llama-3.1-8b-instant",
         "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
         "temperature": 0.1
     }
     
     try:
         response = requests.post(url, headers=headers, json=payload)
-        
-        # Se c'è ancora un errore, stampiamo l'errore VERO di Groq invece del solo numero
         if response.status_code != 200: 
             return None, f"⚠️ Errore API Groq: {response.text}"
             
         testo_risposta = response.json()["choices"][0]["message"]["content"]
         
-        # Estrazione sicura del JSON per evitare crash se il modello aggiunge testo
         try:
             match = re.search(r'\{.*\}', testo_risposta, re.DOTALL)
             dati = json.loads(match.group(0)) if match else json.loads(testo_risposta)
@@ -433,10 +471,10 @@ elif ruolo_utente == "Project Manager":
             revenue_attiva_gg = (df['Tariffa_Vendita'] * (df['Occupazione_%']/100)).sum()
             
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Risorse Totali", tot_risorse)
-            c2.metric("Risorse Staffate", occupate)
-            c3.metric("Mancati Incassi Bench", f"€ {mancati_incassi_gg:,.2f}")
-            c4.metric("Revenue Attesa", f"€ {revenue_attiva_gg:,.2f}")
+            c1.markdown(f"<div class='kpi-card'><h3>Risorse Totali</h3><h2>{tot_risorse}</h2></div>", unsafe_allow_html=True)
+            c2.markdown(f"<div class='kpi-card'><h3>Staffate</h3><h2>{occupate}</h2></div>", unsafe_allow_html=True)
+            c3.markdown(f"<div class='kpi-card red'><h3>Bench (Perdita GG)</h3><h2>€ {mancati_incassi_gg:,.0f}</h2></div>", unsafe_allow_html=True)
+            c4.markdown(f"<div class='kpi-card green'><h3>Revenue GG Attesa</h3><h2>€ {revenue_attiva_gg:,.0f}</h2></div>", unsafe_allow_html=True)
             
             st.markdown("---")
             st.subheader("📊 Bilancio Portafoglio: Ricavi Attivi vs Mancati Ricavi")
@@ -458,13 +496,11 @@ elif ruolo_utente == "Project Manager":
             - **Futuro:** Guardrail, approval workflow AI, audit log e feedback loop.
             """)
             
-            # Funzione Callback corretta per Streamlit
             def imposta_brief_demo():
                 st.session_state.testo_brief = "Il cliente ha richiesto una nuova piattaforma web. Il frontend sarà in React e TypeScript. Per il backend necessitiamo di Python e database SQL. L'infrastruttura andrà portata su AWS."
             
             st.button("📝 Carica Brief di Esempio (per Demo)", on_click=imposta_brief_demo)
             
-            # Inizializza la chiave di sessione se non esiste
             if "testo_brief" not in st.session_state:
                 st.session_state.testo_brief = ""
                 
@@ -475,7 +511,6 @@ elif ruolo_utente == "Project Manager":
                 
                 if not fasi:
                     st.warning("⚠️ Il Motore Deterministico non ha rilevato tecnologie specifiche. Prova a inserire termini tecnici (es. React, Python, AWS, Node, SQL) o usa il 'Brief di Esempio'.")
-                    # Puliamo i vecchi dati se fallisce
                     if "wbs_data" in st.session_state: del st.session_state.wbs_data
                     if "team_data" in st.session_state: del st.session_state.team_data
                 else:
@@ -495,24 +530,28 @@ elif ruolo_utente == "Project Manager":
                     st.session_state.team_data = pd.DataFrame(team_proposto)
 
             if "wbs_data" in st.session_state and not st.session_state.wbs_data.empty:
-                st.markdown("### 1. WBS & Stima Tempi")
-                edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", key="wbs_editor", use_container_width=True)
-                st.markdown("### 2. Team Consigliato e Marginalità")
-                edited_team = st.data_editor(st.session_state.team_data, key="team_editor", use_container_width=True)
+                # --- TABS PER LA UI MIGLIORATA ---
+                tab_wbs, tab_team = st.tabs(["📋 1. WBS & Stima Tempi", "💰 2. Team Consigliato e Marginalità"])
                 
-                costo_totale_progetto, proposta_commerciale = 0, 0
-                for idx, row in edited_wbs.iterrows():
-                    membro = edited_team[edited_team['Skill'] == row['Skill']]
-                    if not membro.empty:
-                        costo_fase = row['Giorni'] * membro.iloc[0]['Costo_gg']
-                        costo_totale_progetto += costo_fase
-                        proposta_commerciale += costo_fase * (1 + (membro.iloc[0]['Margine_%'] / 100))
+                with tab_wbs:
+                    edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", key="wbs_editor", use_container_width=True)
                 
-                st.success("### 💰 Breakdown Finanziario (Tempo Reale)")
-                c_fin1, c_fin2, c_fin3 = st.columns(3)
-                c_fin1.metric("Costo Vivo Progetto", f"€ {costo_totale_progetto:,.2f}")
-                c_fin2.metric("Proposta Commerciale", f"€ {proposta_commerciale:,.2f}")
-                c_fin3.metric("Margine Netto Finale", f"€ {proposta_commerciale - costo_totale_progetto:,.2f}")
+                with tab_team:
+                    edited_team = st.data_editor(st.session_state.team_data, key="team_editor", use_container_width=True)
+                    
+                    costo_totale_progetto, proposta_commerciale = 0, 0
+                    for idx, row in edited_wbs.iterrows():
+                        membro = edited_team[edited_team['Skill'] == row['Skill']]
+                        if not membro.empty:
+                            costo_fase = row['Giorni'] * membro.iloc[0]['Costo_gg']
+                            costo_totale_progetto += costo_fase
+                            proposta_commerciale += costo_fase * (1 + (membro.iloc[0]['Margine_%'] / 100))
+                    
+                    st.markdown("### Breakdown Finanziario (Tempo Reale)")
+                    c_fin1, c_fin2, c_fin3 = st.columns(3)
+                    c_fin1.markdown(f"<div class='kpi-card orange'><h3>Costo Vivo Progetto</h3><h2>€ {costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
+                    c_fin2.markdown(f"<div class='kpi-card'><h3>Proposta Commerciale</h3><h2>€ {proposta_commerciale:,.0f}</h2></div>", unsafe_allow_html=True)
+                    c_fin3.markdown(f"<div class='kpi-card green'><h3>Margine Netto Finale</h3><h2>€ {proposta_commerciale - costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
 
         elif pagina_pm == tab_allocazioni:
             st.title("Gestione Agende e Allocazioni")
@@ -726,7 +765,17 @@ elif ruolo_utente == "Project Manager":
             df_display = df.copy()
             df_display['Progetto_Attuale'] = df_display.apply(estrai_progetto_attuale, axis=1)
             df_display = df_display.drop(columns=['Esperienze'], errors='ignore')
-            st.dataframe(df_display, use_container_width=True)
+            
+            # --- TABELLA SMART CON CONFIGURAZIONI VISIVE ---
+            st.dataframe(
+                df_display,
+                column_config={
+                    "Occupazione_%": st.column_config.ProgressColumn("Impegno (%)", min_value=0, max_value=100, format="%d%%"),
+                    "Costo_Giorno": st.column_config.NumberColumn("Costo GG", format="€ %d"),
+                    "Tariffa_Vendita": st.column_config.NumberColumn("Tariffa Output", format="€ %d")
+                },
+                hide_index=True, use_container_width=True
+            )
 
 # ==========================================
 # VISTA 3: HR (RISORSE UMANE)
@@ -761,9 +810,9 @@ elif ruolo_utente == "HR (Risorse Umane)":
             st.info("Panoramica sulla composizione della forza lavoro aziendale.")
             
             c1, c2, c3 = st.columns(3)
-            c1.metric("Totale Dipendenti (Headcount)", len(df))
-            c2.metric("Età Media (Figurativa)", "32 Anni")
-            c3.metric("Costo Medio GG", f"€ {df['Costo_Giorno'].mean():.0f}")
+            c1.markdown(f"<div class='kpi-card'><h3>Totale Dipendenti</h3><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
+            c2.markdown(f"<div class='kpi-card'><h3>Età Media (Figurativa)</h3><h2>32 Anni</h2></div>", unsafe_allow_html=True)
+            c3.markdown(f"<div class='kpi-card'><h3>Costo Medio GG</h3><h2>€ {df['Costo_Giorno'].mean():.0f}</h2></div>", unsafe_allow_html=True)
             
             st.markdown("---")
             col_chart1, col_chart2 = st.columns(2)
@@ -893,4 +942,13 @@ elif ruolo_utente == "HR (Risorse Umane)":
             df_display = df.copy()
             df_display['Progetto_Attuale'] = df_display.apply(estrai_progetto_attuale, axis=1)
             df_display = df_display.drop(columns=['Esperienze', 'Macro_Area'], errors='ignore')
-            st.dataframe(df_display, use_container_width=True)
+            
+            # --- TABELLA SMART CON CONFIGURAZIONI VISIVE ---
+            st.dataframe(
+                df_display,
+                column_config={
+                    "Occupazione_%": st.column_config.ProgressColumn("Occupato al (%)", min_value=0, max_value=100, format="%d%%"),
+                    "Costo_Giorno": st.column_config.NumberColumn("Costo (€)", format="€ %d")
+                },
+                hide_index=True, use_container_width=True
+            )
