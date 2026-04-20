@@ -11,73 +11,77 @@ import json
 # ==========================================
 # 1. INIZIALIZZAZIONE DATI E SESSIONI
 # ==========================================
-st.set_page_config(page_title="AI Resource Manager", page_icon="🚀", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="ResourceAI - Manager", layout="wide", initial_sidebar_state="expanded")
 
-# --- INIEZIONE CSS SAAS PREMIUM ---
+# --- INIEZIONE CSS CORPORATE SAAS ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
     
     html, body, [class*="css"] { font-family: 'Outfit', sans-serif !important; }
     
+    /* Bottoni stile corporate */
     .stButton>button {
-        border-radius: 8px !important;
+        border-radius: 6px !important;
         font-weight: 600 !important;
         border: 1px solid rgba(255,255,255,0.1) !important;
         transition: all 0.3s ease !important;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
     }
     .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
         border-color: #3B82F6 !important;
         color: #3B82F6 !important;
     }
     
+    /* Titoli a gradiente eleganti */
     .gradient-title {
         background: linear-gradient(45deg, #3B82F6, #10B981);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         font-weight: 700;
-        font-size: 2.8rem;
+        font-size: 2.4rem;
         margin-bottom: 0.5rem;
         margin-top: -1rem;
+        letter-spacing: -0.5px;
     }
     
+    /* KPI Cards Glassmorphism */
     .kpi-card {
         background: linear-gradient(145deg, rgba(30,33,39,0.7) 0%, rgba(20,22,26,0.9) 100%);
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255,255,255,0.05);
-        border-radius: 16px;
+        border-radius: 12px;
         padding: 24px;
-        box-shadow: 0 8px 32px 0 rgba(0,0,0,0.2);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
         position: relative;
         overflow: hidden;
         margin-bottom: 20px;
-        transition: transform 0.3s ease;
     }
-    .kpi-card:hover { transform: translateY(-5px); }
-    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; }
-    .kpi-card.blue::before { background: #3B82F6; box-shadow: 0 0 10px #3B82F6;}
-    .kpi-card.green::before { background: #10B981; box-shadow: 0 0 10px #10B981;}
-    .kpi-card.red::before { background: #EF4444; box-shadow: 0 0 10px #EF4444;}
-    .kpi-card.orange::before { background: #F59E0B; box-shadow: 0 0 10px #F59E0B;}
+    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; }
+    .kpi-card.blue::before { background: #3B82F6; }
+    .kpi-card.green::before { background: #10B981; }
+    .kpi-card.red::before { background: #EF4444; }
+    .kpi-card.orange::before { background: #F59E0B; }
     
-    .kpi-card h3 { color: #8B949E; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-top: 0; margin-bottom: 8px;}
-    .kpi-card h2 { color: #F8F9FA; font-size: 2.2rem; font-weight: 700; margin: 0;}
+    .kpi-card h3 { color: #8B949E; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 0; margin-bottom: 8px;}
+    .kpi-card h2 { color: #F8F9FA; font-size: 2rem; font-weight: 700; margin: 0; letter-spacing: -0.5px;}
     
     .stTabs [data-baseweb="tab"] {
-        font-size: 1.1rem;
+        font-size: 1rem;
         font-weight: 600;
         padding: 10px 20px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Funzione helper per rendere i grafici Plotly coerenti col tema scuro
 def applica_tema_plotly(fig):
     fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="Outfit", color="#8B949E"), margin=dict(l=20, r=20, t=40, b=20)
+        plot_bgcolor='rgba(0,0,0,0)', 
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family="Outfit", color="#8B949E"), 
+        margin=dict(l=20, r=20, t=40, b=20)
     )
     return fig
 
@@ -149,17 +153,22 @@ def estrai_progetto_attuale(row):
         return f"{ult.get('Cliente', 'N/D')} - {ult.get('Progetto', 'N/D')}"
     return "Disponibile (Bench)"
 
-if "df_risorse" not in st.session_state: st.session_state.df_risorse = genera_database()
-if "pending_approvals" not in st.session_state: st.session_state.pending_approvals = []
-if "pending_allocations" not in st.session_state: st.session_state.pending_allocations = []
-if "cal_month_idx" not in st.session_state: st.session_state.cal_month_idx = 0
-if "team_cal_idx" not in st.session_state: st.session_state.team_cal_idx = 0
+if "df_risorse" not in st.session_state: 
+    st.session_state.df_risorse = genera_database()
+if "pending_approvals" not in st.session_state: 
+    st.session_state.pending_approvals = []
+if "pending_allocations" not in st.session_state: 
+    st.session_state.pending_allocations = []
+if "cal_month_idx" not in st.session_state: 
+    st.session_state.cal_month_idx = 0
+if "team_cal_idx" not in st.session_state: 
+    st.session_state.team_cal_idx = 0
 
-# Variabili Chatbot e API Key Groq preimpostata
+# Variabili Chatbot
 if "chat_msgs" not in st.session_state:
-    st.session_state.chat_msgs = [{"role": "assistant", "content": "Ciao! Sono il tuo Copilot AI. Scrivimi un comando, ad esempio:\n- *Alloca Marco Rossi su TIM al 50%*\n- *Promuovi Giulia Bianchi a Senior*"}]
-if "bot_action" not in st.session_state: st.session_state.bot_action = None
-
+    st.session_state.chat_msgs = [{"role": "assistant", "content": "Sistema Copilot inizializzato. Inserire query di testo (es. Alloca Marco Rossi su TIM al 50%)."}]
+if "bot_action" not in st.session_state: 
+    st.session_state.bot_action = None
 if "groq_api_key" not in st.session_state: 
     st.session_state.groq_api_key = "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"
 
@@ -167,6 +176,7 @@ if "pm_logged_in" not in st.session_state: st.session_state.pm_logged_in = False
 if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
 if "hr_logged_in" not in st.session_state: st.session_state.hr_logged_in = False
 if "current_it_user" not in st.session_state: st.session_state.current_it_user = None
+
 
 # ==========================================
 # 2. MOTORI AI E COPILOT
@@ -198,19 +208,24 @@ def fallback_simulatore_chatbot(prompt, df):
         if nome.lower() in prompt_l:
             nome_trovato = nome
             break
-    if not nome_trovato: return None, "Non ho trovato il dipendente. (Modalità Simulator)"
+    if not nome_trovato: 
+        return None, "Identità risorsa non rilevata nel Master Data. Riformulare la query."
+    
     if "alloca" in prompt_l or "assegna" in prompt_l:
         perc_match = re.search(r'(\d+)%', prompt_l)
         perc = int(perc_match.group(1)) if perc_match else 100
         cliente = "Nuovo Progetto"
         match_cliente = re.search(r'(?:su|sul|sulla)\s+([a-zA-Z0-9_\-]+)', prompt_l.replace("progetto ", ""))
-        if match_cliente: cliente = match_cliente.group(1).capitalize()
-        desc = f"**{nome_trovato}** pronto per l'allocazione (Simulazione)."
+        if match_cliente: 
+            cliente = match_cliente.group(1).capitalize()
+        desc = f"Record **{nome_trovato}** bloccato temporaneamente per operazione di allocazione."
         return {"type": "alloca", "nome": nome_trovato, "perc": perc, "cliente": cliente, "desc": desc}, None
+    
     if "promuovi" in prompt_l:
         sen = "Senior" if "senior" in prompt_l else "Mid" if "mid" in prompt_l else "Junior"
-        return {"type": "promuovi", "nome": nome_trovato, "nuova_sen": sen, "desc": f"Promuovo **{nome_trovato}** a **{sen}**."}, None
-    return None, "Comando non riconosciuto (Modalità Simulator)."
+        return {"type": "promuovi", "nome": nome_trovato, "nuova_sen": sen, "desc": f"Transazione di upgrade a livello **{sen}** predisposta per **{nome_trovato}**."}, None
+    
+    return None, "Comando di sistema non riconosciuto. Sintassi non valida."
 
 def parse_chatbot_intent_llm(prompt, df, api_key):
     """Vero LLM tramite Groq per il Copilot Chatbot (Versione Antiproiettile)"""
@@ -220,19 +235,19 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     lista_nomi = ", ".join(df['Nome'].tolist())
     
     system_prompt = f"""
-    Sei l'assistente virtuale di un sistema HR/Project Management.
-    Rispondi SEMPRE E SOLO con un oggetto JSON valido. Non aggiungere altre frasi.
-    Dipendenti a sistema: {lista_nomi}
+    Sei il modulo Copilot integrato in una piattaforma SaaS HR/Project Management.
+    Rispondi SEMPRE E SOLO con un oggetto JSON valido. Non aggiungere discorsi discorsivi.
+    Dipendenti presenti a sistema: {lista_nomi}
     
-    REGOLE:
+    REGOLE DI RISPOSTA:
     1. Se l'utente chiede di ALLOCARE/ASSEGNARE:
-    {{"azione": "alloca", "nome": "Nome e Cognome", "percentuale": 50, "cliente": "Nome cliente", "messaggio_riepilogo": "Vado ad allocare..."}}
+    {{"azione": "alloca", "nome": "Nome e Cognome", "percentuale": 50, "cliente": "Nome cliente", "messaggio_riepilogo": "Processo di allocazione inizializzato..."}}
     
-    2. Se l'utente chiede di PROMUOVERE:
-    {{"azione": "promuovi", "nome": "Nome e Cognome", "nuova_seniority": "Junior/Mid/Senior", "messaggio_riepilogo": "Vado a promuovere..."}}
+    2. Se l'utente chiede di PROMUOVERE/AVANZARE DI LIVELLO:
+    {{"azione": "promuovi", "nome": "Nome e Cognome", "nuova_seniority": "Junior/Mid/Senior", "messaggio_riepilogo": "Iter di promozione preparato..."}}
     
-    3. Se l'utente ti saluta (es. "ciao come stai") o fa richieste non pertinenti:
-    {{"azione": "errore", "messaggio_riepilogo": "Ciao! Sono il tuo AI Copilot. Posso aiutarti ad allocare risorse sui progetti o a promuovere i consulenti. Prova a chiedermi: 'Alloca Marco Rossi su TIM al 50%'."}}
+    3. Se l'utente saluta o fa richieste fuori contesto (es. "ciao come stai"):
+    {{"azione": "errore", "messaggio_riepilogo": "Copilot di sistema online. Funzionalità attive: Allocazione su commessa, Variazione livelli di seniority."}}
     """
     
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -247,7 +262,7 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
         response = requests.post(url, headers=headers, json=payload)
         
         if response.status_code != 200: 
-            return None, f"⚠️ Errore API Groq: {response.text}"
+            return None, f"Errore Gateway LLM (Codice {response.status_code}): {response.text}"
             
         testo_risposta = response.json()["choices"][0]["message"]["content"]
         
@@ -255,7 +270,7 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
             match = re.search(r'\{.*\}', testo_risposta, re.DOTALL)
             dati = json.loads(match.group(0)) if match else json.loads(testo_risposta)
         except:
-            return None, f"⚠️ Il modello non ha restituito JSON valido. Risposta ricevuta: {testo_risposta}"
+            return None, f"Errore decodifica JSON dal payload AI."
         
         if dati.get("azione") == "errore": 
             return None, dati.get("messaggio_riepilogo")
@@ -277,9 +292,9 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
                 "desc": dati.get("messaggio_riepilogo")
             }, None
             
-        return None, "Non ho capito la richiesta. Riprova con parole diverse."
+        return None, "Interpretazione logica del payload fallita. Query non compresa."
     except Exception as e:
-        return None, f"⚠️ Errore di connessione AI: {str(e)}"
+        return None, f"Errore di connettività Nodo AI: {str(e)}"
 
 def esegui_azione_chatbot(dati_finali):
     df = st.session_state.df_risorse
@@ -292,206 +307,78 @@ def esegui_azione_chatbot(dati_finali):
         else:
             df.at[idx, 'Disponibile_dal'] = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
         df.at[idx, 'Esperienze'].append({"Cliente": dati_finali['cliente'], "Progetto": "Assegnazione da AI Copilot", "Tecnologie_Usate": []})
-        msg = f"✅ Successo: **{dati_finali['nome']}** assegnato a **{dati_finali['cliente']}** al {dati_finali['perc']}%."
+        msg = f"Task Eseguito: Profilo **{dati_finali['nome']}** integrato su commessa **{dati_finali['cliente']}** (Saturazione: {dati_finali['perc']}%)."
         
     elif dati_finali['type'] == 'promuovi':
         ruolo_puro = df.at[idx, 'Ruolo'].replace('Senior ', '').replace('Mid ', '').replace('Junior ', '')
         df.at[idx, 'Seniority'] = dati_finali['nuova_sen']
         df.at[idx, 'Ruolo'] = f"{dati_finali['nuova_sen']} {ruolo_puro}"
-        msg = f"✅ Successo: **{dati_finali['nome']}** promosso a **{dati_finali['nuova_sen']}**."
+        msg = f"Task Eseguito: Aggiornamento anagrafico completato. **{dati_finali['nome']}** promosso a livello **{dati_finali['nuova_sen']}**."
 
     st.session_state.bot_action = None
     st.session_state.chat_msgs.append({"role": "assistant", "content": msg})
 
-# ==========================================
-# 3. SIDEBAR BASE E LOGOUT INCROCIATI
-# ==========================================
-st.sidebar.title("🔐 Accesso Sistema")
-ruolo_utente = st.sidebar.radio("Scegli il tuo ruolo:", ["Project Manager", "HR (Risorse Umane)", "Consulente"])
 
-if ruolo_utente != "Project Manager": st.session_state.pm_logged_in = False
-if ruolo_utente != "Consulente": 
+# ==========================================
+# 3. SIDEBAR E NAVIGAZIONE (CORPORATE STYLE)
+# ==========================================
+# Logo Aziendale
+st.sidebar.markdown("<div style='font-size: 26px; font-weight: 800; letter-spacing: -1px; color: #F8F9FA; margin-bottom: 30px; margin-top: -20px;'>Resource<span style='color: #3B82F6;'>AI</span></div>", unsafe_allow_html=True)
+
+ruolo_utente = st.sidebar.selectbox("PROFILO DI ACCESSO", ["Project Management", "Human Resources", "Consulente IT"])
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
+
+# Gestione Logout Dinamica
+if ruolo_utente != "Project Management": 
+    st.session_state.pm_logged_in = False
+if ruolo_utente != "Consulente IT": 
     st.session_state.it_logged_in = False
     st.session_state.current_it_user = None
-if ruolo_utente != "HR (Risorse Umane)": st.session_state.hr_logged_in = False
+if ruolo_utente != "Human Resources": 
+    st.session_state.hr_logged_in = False
 
 df = st.session_state.df_risorse
 
-# ---------------------------------------------------------
-# IMPOSTAZIONI VERO LLM (GROQ) PER IL CHATBOT
-# ---------------------------------------------------------
-if ruolo_utente in ["Project Manager", "HR (Risorse Umane)"]:
-    with st.sidebar.expander("⚙️ Impostazioni AI Copilot (Groq)"):
-        st.write("Attiva il VERO LLM (Llama 3) per il Chatbot.")
-        api_key = st.text_input("Groq API Key (gsk_...):", value=st.session_state.groq_api_key, type="password")
-        if st.button("Salva Chiave"):
-            st.session_state.groq_api_key = api_key
-            st.success("API Key salvata! Chatbot potenziato.")
-
-# ---------------------------------------------------------
-# CHATBOT WIDGET CON POPUP E FORM DI CONFERMA
-# ---------------------------------------------------------
-if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
-    st.sidebar.markdown("---")
-    with st.sidebar.popover("💬 Assistente AI (Copilot)", use_container_width=True):
-        st.markdown("**Copilot Aziendale**")
-        if st.session_state.groq_api_key and st.session_state.groq_api_key.startswith("gsk_"):
-            st.caption("🟢 *Motore: Llama-3 (Groq LLM)*")
-        else:
-            st.caption("🟠 *Motore: Rules Engine (Simulatore)*")
-        
-        for msg in st.session_state.chat_msgs:
-            with st.chat_message(msg["role"]):
-                st.write(msg["content"])
-        
-        if st.session_state.bot_action:
-            act = st.session_state.bot_action
-            st.info(act['desc'])
-            
-            if act['type'] == 'alloca':
-                with st.form("form_bot_conferma"):
-                    c1, c2 = st.columns(2)
-                    nuovo_cliente = c1.text_input("Cliente/Progetto", value=act['cliente'])
-                    nuova_perc = c2.number_input("Occupazione %", min_value=0, max_value=100, value=act['perc'])
-                    date_range = st.date_input("Periodo", value=(datetime.today(), datetime.today() + timedelta(days=30)))
-                    
-                    c_btn1, c_btn2 = st.columns(2)
-                    submit_bot = c_btn1.form_submit_button("✅ Conferma ed Esegui")
-                    cancel_bot = c_btn2.form_submit_button("❌ Annulla")
-                    
-                    if submit_bot:
-                        if len(date_range) == 2:
-                            act['cliente'] = nuovo_cliente
-                            act['perc'] = nuova_perc
-                            act['end_date'] = date_range[1]
-                            esegui_azione_chatbot(act)
-                            st.rerun()
-                        else:
-                            st.error("Seleziona una data di fine.")
-                    if cancel_bot:
-                        st.session_state.bot_action = None
-                        st.session_state.chat_msgs.append({"role": "assistant", "content": "Operazione annullata."})
-                        st.rerun()
-            else:
-                col_ok, col_ko = st.columns(2)
-                if col_ok.button("✅ Esegui"):
-                    esegui_azione_chatbot(act)
-                    st.rerun()
-                if col_ko.button("❌ Annulla"):
-                    st.session_state.bot_action = None
-                    st.session_state.chat_msgs.append({"role": "assistant", "content": "Operazione annullata."})
-                    st.rerun()
-
-        if prompt := st.chat_input("Chiedi all'AI (es. Alloca Luca Neri su TIM al 50%)..."):
-            st.session_state.chat_msgs.append({"role": "user", "content": prompt})
-            with st.spinner("Elaborazione..."):
-                action_dict, error_msg = parse_chatbot_intent_llm(prompt, st.session_state.df_risorse, st.session_state.groq_api_key)
-            
-            if error_msg:
-                st.session_state.chat_msgs.append({"role": "assistant", "content": error_msg})
-            else:
-                st.session_state.bot_action = action_dict
-                st.session_state.chat_msgs.append({"role": "assistant", "content": "Ho preparato la richiesta. Controlla e conferma:"})
-            st.rerun()
 
 # ==========================================
-# VISTA 1: CONSULENTE
+# VISTA 1: PROJECT MANAGER
 # ==========================================
-if ruolo_utente == "Consulente":
-    if not st.session_state.it_logged_in:
-        st.markdown("<h1 class='gradient-title'>Accesso Area Personale</h1>", unsafe_allow_html=True)
-        with st.form("login_it_form"):
-            utente_selezionato = st.selectbox("Chi sei?", df['Nome'].tolist())
-            password_it = st.text_input("Password", type="password", help="Password: dev123")
-            if st.form_submit_button("Accedi"):
-                if password_it == "dev123":
-                    st.session_state.it_logged_in = True
-                    st.session_state.current_it_user = utente_selezionato
-                    st.rerun()
-                else: st.error("Password errata.")
-    else:
-        st.markdown(f"<h1 class='gradient-title'>Dashboard Personale - {st.session_state.current_it_user}</h1>", unsafe_allow_html=True)
-        if st.button("Esci (Logout)"):
-            st.session_state.it_logged_in = False
-            st.rerun()
-            
-        dati_utente = df[df['Nome'] == st.session_state.current_it_user].iloc[0]
-        prog_att = estrai_progetto_attuale(dati_utente)
-        
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("<div class='kpi-card blue'><h3>Le tue Info</h3>", unsafe_allow_html=True)
-            st.write(f"**Qualifica:** {dati_utente['Ruolo']}")
-            st.write(f"**Skill Validate:** {dati_utente['Skill']}")
-            st.write(f"**Stato:** Occupato al {dati_utente['Occupazione_%']}% su **{prog_att}**")
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-            st.write("**Richiedi Validazione Skill**")
-            nuova_skill = st.text_input("Aggiungi competenza (es. GraphQL):")
-            if st.button("Invia Skill al PM"):
-                if nuova_skill.strip():
-                    st.session_state.pending_approvals.append({"ID": dati_utente['ID'], "Nome": dati_utente['Nome'], "Skill": nuova_skill.strip()})
-                    st.success("Richiesta inviata!")
-        with c2:
-            st.markdown("<div class='kpi-card orange'><h3>Richiedi Allocazione / Slot</h3>", unsafe_allow_html=True)
-            st.info("Invia una richiesta al PM per occupare uno slot in agenda.")
-            with st.form("richiesta_alloc"):
-                progetto_req = st.text_input("Nome Progetto / Cliente")
-                disp_req = st.slider("Percentuale di impegno richiesta (%)", 25, 100, 50, step=25)
-                date_req = st.date_input("Periodo", value=(datetime.today(), datetime.today() + timedelta(days=30)))
-                if st.form_submit_button("Invia Richiesta di Allocazione"):
-                    if len(date_req) == 2:
-                        st.session_state.pending_allocations.append({
-                            "ID": dati_utente['ID'], "Nome": dati_utente['Nome'], 
-                            "Progetto": progetto_req, "Occupazione": disp_req, 
-                            "Dal": date_req[0], "Al": date_req[1]
-                        })
-                        st.success("Richiesta di allocazione inviata al manager!")
-                    else:
-                        st.error("Seleziona una data di inizio e fine.")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-# ==========================================
-# VISTA 2: PROJECT MANAGER
-# ==========================================
-elif ruolo_utente == "Project Manager":
+if ruolo_utente == "Project Management":
     if not st.session_state.pm_logged_in:
-        st.markdown("<h1 class='gradient-title'>Accesso Area Manager</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='gradient-title'>Gateway Project Management</h1>", unsafe_allow_html=True)
         with st.form("login_pm_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password", help="admin / admin123")
-            if st.form_submit_button("Accedi"):
+            username = st.text_input("ID Utente")
+            password = st.text_input("Credenziale di Rete", type="password", help="admin / admin123")
+            if st.form_submit_button("Inizializza Sessione"):
                 if username == "admin" and password == "admin123":
                     st.session_state.pm_logged_in = True
                     st.rerun()
-                else: st.error("Credenziali errate.")
+                else: 
+                    st.error("Rifiutato. Credenziali non conformi.")
     else:
         num_req_alloc = len(st.session_state.pending_allocations)
-        tab_allocazioni = f"📅 Pianificazione ({num_req_alloc})" if num_req_alloc > 0 else "📅 Pianificazione"
+        tab_allocazioni = f"Gestione Allocazioni ({num_req_alloc})" if num_req_alloc > 0 else "Gestione Allocazioni"
         
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("🛠️ Navigazione PM")
-        pagina_pm = st.sidebar.radio("Vai a:", [
-            "🏠 Homepage & Alert", 
-            "🚀 Scoping & Staffing AI",
+        pagina_pm = st.sidebar.radio("MODULI OPERATIVI", [
+            "Control Center", 
+            "AI Scoping & Staffing",
             tab_allocazioni,
-            "👥 Pianificazione Team (Scheduling)",
-            "👤 Analisi Profili", 
-            "🗄️ Master Data (Database)"
+            "Scheduling Agende",
+            "Indagine Profili", 
+            "Master Data Risorse"
         ])
         
-        if st.sidebar.button("🚪 Esci (Logout)"):
+        if st.sidebar.button("Termina Sessione Corrente"):
             st.session_state.pm_logged_in = False
             st.rerun()
 
-        if pagina_pm == "🏠 Homepage & Alert":
-            st.markdown("<h1 class='gradient-title'>Centro di Controllo Manageriale</h1>", unsafe_allow_html=True)
+        # ----------------------------------------
+        # SOTTO-VISTA: Control Center
+        # ----------------------------------------
+        if pagina_pm == "Control Center":
+            st.markdown("<h1 class='gradient-title'>Control Center Manageriale</h1>", unsafe_allow_html=True)
             if num_req_alloc > 0:
-                st.warning(f"🔔 **ATTENZIONE:** Hai **{num_req_alloc}** nuove richieste di allocazione in attesa.")
-            
-            with st.container(border=True):
-                st.markdown("#### 👤 Profilo Manager: Admin")
-                st.markdown("**Ruolo:** Senior IT Delivery Manager  \n**Dipartimento:** Digital Transformation")
+                st.warning(f"Avviso di Sistema: {num_req_alloc} richieste di allocazione in coda di attesa.")
             
             tot_risorse = len(df)
             occupate = len(df[df['Occupazione_%'] > 0])
@@ -499,48 +386,47 @@ elif ruolo_utente == "Project Manager":
             revenue_attiva_gg = (df['Tariffa_Vendita'] * (df['Occupazione_%']/100)).sum()
             
             c1, c2, c3, c4 = st.columns(4)
-            c1.markdown(f"<div class='kpi-card blue'><h3>Risorse Totali</h3><h2>{tot_risorse}</h2></div>", unsafe_allow_html=True)
-            c2.markdown(f"<div class='kpi-card'><h3>Staffate Attive</h3><h2>{occupate}</h2></div>", unsafe_allow_html=True)
-            c3.markdown(f"<div class='kpi-card red'><h3>Bench (Mancati Ricavi GG)</h3><h2>€ {mancati_incassi_gg:,.0f}</h2></div>", unsafe_allow_html=True)
-            c4.markdown(f"<div class='kpi-card green'><h3>Revenue Attesa GG</h3><h2>€ {revenue_attiva_gg:,.0f}</h2></div>", unsafe_allow_html=True)
+            c1.markdown(f"<div class='kpi-card blue'><h3>Database Attivo</h3><h2>{tot_risorse}</h2></div>", unsafe_allow_html=True)
+            c2.markdown(f"<div class='kpi-card'><h3>Risorse in Carico</h3><h2>{occupate}</h2></div>", unsafe_allow_html=True)
+            c3.markdown(f"<div class='kpi-card red'><h3>Margine Non Realizzato (GG)</h3><h2>€ {mancati_incassi_gg:,.0f}</h2></div>", unsafe_allow_html=True)
+            c4.markdown(f"<div class='kpi-card green'><h3>Revenue Attesa (GG)</h3><h2>€ {revenue_attiva_gg:,.0f}</h2></div>", unsafe_allow_html=True)
             
             st.markdown("---")
-            st.subheader("📊 Bilancio Portafoglio: Ricavi Attivi vs Mancati Ricavi")
+            st.subheader("Rapporto di Finanza Operativa")
             df_fin = pd.DataFrame({
-                "Categoria": ["Mancati Ricavi (Bench)", "Ricavi Attivi (Staffati)"],
+                "Categoria": ["Bench (Passivo)", "Staffati (Attivo)"],
                 "Valore Giornaliero": [mancati_incassi_gg, revenue_attiva_gg]
             })
             fig_fin = px.pie(df_fin, values='Valore Giornaliero', names='Categoria', hole=0.3,
-                             color='Categoria', color_discrete_map={"Mancati Ricavi (Bench)": "#EF4444", "Ricavi Attivi (Staffati)": "#10B981"})
+                             color='Categoria', color_discrete_map={"Bench (Passivo)": "#EF4444", "Staffati (Attivo)": "#10B981"})
             st.plotly_chart(applica_tema_plotly(fig_fin), use_container_width=True)
 
-        elif pagina_pm == "🚀 Scoping & Staffing AI":
-            st.markdown("<h1 class='gradient-title'>Scoping Dinamico & Scenario Analysis</h1>", unsafe_allow_html=True)
-            
-            st.info("""
-            **AI-enabled Staffing Copilot Roadmap**
-            - **Oggi (MVP Operativo):** Motore a Regole Deterministiche (Rules Engine) per Scenario Analysis & Allocation Cockpit.
-            - **Domani (In Roadmap):** Integrazione full LLM per scoping semantico profondo, skill extraction automatica e reasoning sui carichi di lavoro.
-            - **Futuro:** Guardrail, approval workflow AI, audit log e feedback loop.
-            """)
+        # ----------------------------------------
+        # SOTTO-VISTA: AI Scoping
+        # ----------------------------------------
+        elif pagina_pm == "AI Scoping & Staffing":
+            st.markdown("<h1 class='gradient-title'>Motore Scoping Dinamico</h1>", unsafe_allow_html=True)
+            st.caption("Modulo Analisi: Rules Engine Deterministico (Upgrade LLM Semantico in roadmap)")
             
             def imposta_brief_demo():
-                st.session_state.testo_brief = "Il cliente ha richiesto una nuova piattaforma web. Il frontend sarà in React e TypeScript. Per il backend necessitiamo di Python e database SQL. L'infrastruttura andrà portata su AWS."
+                st.session_state.testo_brief = "Il client richiede una nuova architettura web. Stack Frontend in React e TypeScript. Stack Backend in Node.js. Database SQL su Cloud AWS."
             
-            st.button("📝 Carica Brief di Esempio (per Demo)", on_click=imposta_brief_demo)
+            st.button("Inizializza Query Demo", on_click=imposta_brief_demo)
             
             if "testo_brief" not in st.session_state:
                 st.session_state.testo_brief = ""
                 
-            testo_da_analizzare = st.text_area("Requisiti di progetto (Inserisci il brief da valutare col Motore Deterministico):", key="testo_brief", height=100)
+            testo_da_analizzare = st.text_area("Input Parametri Architetturali (Brief Tecnico):", key="testo_brief", height=100)
 
-            if st.button("Genera WBS e Team", type="primary"):
+            if st.button("Elabora WBS e Copertura Target", type="primary"):
                 fasi, skill_richieste = analizza_testo(testo_da_analizzare)
                 
                 if not fasi:
-                    st.warning("⚠️ Il Motore Deterministico non ha rilevato tecnologie specifiche. Prova a inserire termini tecnici (es. React, Python, AWS, Node, SQL) o usa il 'Brief di Esempio'.")
-                    if "wbs_data" in st.session_state: del st.session_state.wbs_data
-                    if "team_data" in st.session_state: del st.session_state.team_data
+                    st.warning("Errore di Parsing: Nessun framework riconosciuto. Inserire standard di mercato (es. React, Python, AWS).")
+                    if "wbs_data" in st.session_state: 
+                        del st.session_state.wbs_data
+                    if "team_data" in st.session_state: 
+                        del st.session_state.team_data
                 else:
                     st.session_state.wbs_data = pd.DataFrame(fasi)
                     
@@ -554,11 +440,11 @@ elif ruolo_utente == "Project Manager":
                                 match_trovato = True
                                 break 
                         if not match_trovato:
-                            team_proposto.append({"Skill": skill, "Nome": "DA ASSUMERE", "Costo_gg": 300, "Margine_%": 30})
+                            team_proposto.append({"Skill": skill, "Nome": "POSIZIONE APERTA", "Costo_gg": 300, "Margine_%": 30})
                     st.session_state.team_data = pd.DataFrame(team_proposto)
 
             if "wbs_data" in st.session_state and not st.session_state.wbs_data.empty:
-                tab_wbs, tab_team = st.tabs(["📋 1. WBS & Stima Tempi", "💰 2. Team Consigliato e Marginalità"])
+                tab_wbs, tab_team = st.tabs(["Work Breakdown Structure", "Assessment Economico Team"])
                 
                 with tab_wbs:
                     edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", key="wbs_editor", use_container_width=True)
@@ -566,7 +452,9 @@ elif ruolo_utente == "Project Manager":
                 with tab_team:
                     edited_team = st.data_editor(st.session_state.team_data, key="team_editor", use_container_width=True)
                     
-                    costo_totale_progetto, proposta_commerciale = 0, 0
+                    costo_totale_progetto = 0
+                    proposta_commerciale = 0
+                    
                     for idx, row in edited_wbs.iterrows():
                         membro = edited_team[edited_team['Skill'] == row['Skill']]
                         if not membro.empty:
@@ -574,68 +462,82 @@ elif ruolo_utente == "Project Manager":
                             costo_totale_progetto += costo_fase
                             proposta_commerciale += costo_fase * (1 + (membro.iloc[0]['Margine_%'] / 100))
                     
-                    st.markdown("<br>### Breakdown Finanziario (Tempo Reale)", unsafe_allow_html=True)
+                    st.markdown("<br>### Previsione Finanziaria di Commessa", unsafe_allow_html=True)
                     c_fin1, c_fin2, c_fin3 = st.columns(3)
-                    c_fin1.markdown(f"<div class='kpi-card orange'><h3>Costo Vivo Progetto</h3><h2>€ {costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
-                    c_fin2.markdown(f"<div class='kpi-card blue'><h3>Proposta Commerciale</h3><h2>€ {proposta_commerciale:,.0f}</h2></div>", unsafe_allow_html=True)
-                    c_fin3.markdown(f"<div class='kpi-card green'><h3>Margine Netto Finale</h3><h2>€ {proposta_commerciale - costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
+                    c_fin1.markdown(f"<div class='kpi-card orange'><h3>Spesa Operativa (OPEX)</h3><h2>€ {costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
+                    c_fin2.markdown(f"<div class='kpi-card blue'><h3>Valore Offerta (Mercato)</h3><h2>€ {proposta_commerciale:,.0f}</h2></div>", unsafe_allow_html=True)
+                    c_fin3.markdown(f"<div class='kpi-card green'><h3>Margine Utile Atteso</h3><h2>€ {proposta_commerciale - costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
 
+        # ----------------------------------------
+        # SOTTO-VISTA: Gestione Allocazioni
+        # ----------------------------------------
         elif pagina_pm == tab_allocazioni:
-            st.markdown("<h1 class='gradient-title'>Gestione Agende e Allocazioni</h1>", unsafe_allow_html=True)
+            st.markdown("<h1 class='gradient-title'>Code di Allocazione e Assegnazione</h1>", unsafe_allow_html=True)
             
-            st.subheader("1. Richieste in attesa")
+            st.subheader("Istanze Pendenti")
             if len(st.session_state.pending_allocations) > 0:
                 for i, req in enumerate(list(st.session_state.pending_allocations)):
                     with st.container(border=True):
-                        st.write(f"👤 **{req['Nome']}** richiede il {req['Occupazione']}% per il progetto **{req['Progetto']}** ({req['Dal']} a {req['Al']})")
+                        st.write(f"Record **{req['Nome']}** richiede copertura al {req['Occupazione']}% per la commessa **{req['Progetto']}** (Periodo: {req['Dal']} -> {req['Al']})")
                         b1, b2 = st.columns(2)
-                        if b1.button("✅ Approva", key=f"alloc_ok_{i}"):
+                        if b1.button("Autorizza Transazione", key=f"alloc_ok_{i}"):
                             idx = df.index[df['ID'] == req['ID']].tolist()[0]
                             st.session_state.df_risorse.at[idx, 'Occupazione_%'] = req['Occupazione']
                             st.session_state.df_risorse.at[idx, 'Disponibile_dal'] = req['Al'].strftime("%Y-%m-%d")
-                            st.session_state.df_risorse.at[idx, 'Esperienze'].append({"Cliente": "Interno", "Progetto": req['Progetto'], "Tecnologie_Usate": []})
+                            st.session_state.df_risorse.at[idx, 'Esperienze'].append({"Cliente": "Gestione Interna", "Progetto": req['Progetto'], "Tecnologie_Usate": []})
                             st.session_state.pending_allocations.pop(i)
                             st.rerun()
-                        if b2.button("❌ Rifiuta", key=f"alloc_ko_{i}"):
+                        if b2.button("Declina Istanza", key=f"alloc_ko_{i}"):
                             st.session_state.pending_allocations.pop(i)
                             st.rerun()
-            else: st.success("Nessuna richiesta in sospeso.")
+            else: 
+                st.caption("Nessun task in coda operativa.")
                 
             st.divider()
-            st.subheader("2. Assegnazione Manuale (Top-Down)")
+            st.subheader("Modulo di Override Costante (Top-Down)")
             with st.form("manual_alloc"):
-                r_scelta = st.selectbox("Seleziona Consulente:", df['Nome'].tolist())
+                r_scelta = st.selectbox("Identificativo Risorsa:", df['Nome'].tolist())
                 c_form1, c_form2 = st.columns(2)
-                cliente_input = c_form1.text_input("Nome Cliente")
-                progetto_input = c_form2.text_input("Tipo Progetto / Lavoro")
+                cliente_input = c_form1.text_input("Ragione Sociale Cliente")
+                progetto_input = c_form2.text_input("Codice / Nome Progetto")
                 
                 c_form3, c_form4 = st.columns(2)
                 oggi = datetime.today()
-                date_range = c_form3.date_input("Periodo di Allocazione", value=(oggi, oggi + timedelta(days=60)))
-                perc = c_form4.slider("Percentuale %", 0, 100, 100, step=25)
+                date_range = c_form3.date_input("Finestra Temporale Copertura", value=(oggi, oggi + timedelta(days=60)))
+                perc = c_form4.slider("Indice Saturazione Obiettivo (%)", 0, 100, 100, step=25)
                 
-                if st.form_submit_button("Forza Allocazione") and len(date_range) == 2 and cliente_input:
-                    idx = df.index[df['Nome'] == r_scelta].tolist()[0]
-                    st.session_state.df_risorse.at[idx, 'Occupazione_%'] = perc
-                    st.session_state.df_risorse.at[idx, 'Disponibile_dal'] = date_range[1].strftime("%Y-%m-%d")
-                    st.session_state.df_risorse.at[idx, 'Esperienze'].append({"Cliente": cliente_input, "Progetto": progetto_input, "Tecnologie_Usate": []})
-                    st.success(f"✅ {r_scelta} allocato con successo!")
+                if st.form_submit_button("Esegui Forzatura Allocazione"):
+                    if len(date_range) == 2 and cliente_input:
+                        idx = df.index[df['Nome'] == r_scelta].tolist()[0]
+                        st.session_state.df_risorse.at[idx, 'Occupazione_%'] = perc
+                        st.session_state.df_risorse.at[idx, 'Disponibile_dal'] = date_range[1].strftime("%Y-%m-%d")
+                        st.session_state.df_risorse.at[idx, 'Esperienze'].append({"Cliente": cliente_input, "Progetto": progetto_input, "Tecnologie_Usate": []})
+                        st.success(f"Log: Intervento su {r_scelta} registrato e propagato.")
+                    else:
+                        st.error("Log: Campi obbligatori mancanti.")
 
-        elif pagina_pm == "👥 Pianificazione Team (Scheduling)":
-            st.markdown("<h1 class='gradient-title'>Scheduling Assistant Team</h1>", unsafe_allow_html=True)
-            st.write("Componi il tuo team e verifica la disponibilità incrociata attraverso i calendari visivi.")
+        # ----------------------------------------
+        # SOTTO-VISTA: Scheduling (Calendari Visivi)
+        # ----------------------------------------
+        elif pagina_pm == "Scheduling Agende":
+            st.markdown("<h1 class='gradient-title'>Analisi Visiva Disponibilità Team</h1>", unsafe_allow_html=True)
+            st.write("Verifica degli incroci di agenda su orizzonte esteso.")
             
             c_f1, c_f2 = st.columns(2)
-            filtro_sen = c_f1.multiselect("Filtra per Seniority:", ["Junior", "Mid", "Senior"], default=["Senior", "Mid", "Junior"])
-            df_filtered = df[df['Seniority'].isin(filtro_sen)] if filtro_sen else df
+            filtro_sen = c_f1.multiselect("Filtraggio per Livello:", ["Junior", "Mid", "Senior"], default=["Senior", "Mid", "Junior"])
             
-            team_selezionato = c_f2.multiselect("Seleziona le risorse per il Team:", df_filtered['Nome'].tolist())
+            if filtro_sen:
+                df_filtered = df[df['Seniority'].isin(filtro_sen)]
+            else:
+                df_filtered = df
+                
+            team_selezionato = c_f2.multiselect("Target Risorse da Valutare:", df_filtered['Nome'].tolist())
             
             if "team_cal_idx" not in st.session_state: 
                 st.session_state.team_cal_idx = 0
                 
             oggi = datetime.today()
-            orizzonte = st.date_input("Orizzonte temporale di analisi (Inizio - Fine):", value=(oggi, oggi + timedelta(days=180)))
+            orizzonte = st.date_input("Configurazione Orizzonte Analitico:", value=(oggi, oggi + timedelta(days=180)))
             
             if team_selezionato and len(orizzonte) == 2:
                 start_date, end_date = orizzonte
@@ -645,18 +547,20 @@ elif ruolo_utente == "Project Manager":
                 curr = start_date.replace(day=1)
                 while curr <= end_date:
                     mesi_presenti.append((curr.year, curr.month))
-                    if curr.month == 12: curr = curr.replace(year=curr.year+1, month=1)
-                    else: curr = curr.replace(month=curr.month+1)
+                    if curr.month == 12: 
+                        curr = curr.replace(year=curr.year+1, month=1)
+                    else: 
+                        curr = curr.replace(month=curr.month+1)
                 
                 if st.session_state.team_cal_idx >= len(mesi_presenti): 
                     st.session_state.team_cal_idx = 0
                 
                 col_p, col_m, col_n = st.columns([1,2,1])
-                if col_p.button("◀ Mese Precedente", key="btn_prev_team"):
+                if col_p.button("Retrocedi Mese", key="btn_prev_team"):
                     if st.session_state.team_cal_idx > 0:
                         st.session_state.team_cal_idx -= 1
                         st.rerun()
-                if col_n.button("Mese Successivo ▶", key="btn_next_team"):
+                if col_n.button("Avanza Mese", key="btn_next_team"):
                     if st.session_state.team_cal_idx < len(mesi_presenti) - 1:
                         st.session_state.team_cal_idx += 1
                         st.rerun()
@@ -668,11 +572,11 @@ elif ruolo_utente == "Project Manager":
                 col_m.markdown(f"<h3 style='text-align:center; color:#3B82F6; margin-top:0;'>{nome_mese} {anno_corr}</h3>", unsafe_allow_html=True)
                 
                 st.markdown("""
-                <div style="display:flex; justify-content:center; gap:20px; font-size:12px; margin-bottom: 30px;">
-                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#EF4444; margin-right:5px; border-radius:3px;"></div> <b>Disponibile (Bench)</b></div>
-                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#F59E0B; margin-right:5px; border-radius:3px;"></div> <b>Parz. Occupato</b></div>
-                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#10B981; margin-right:5px; border-radius:3px;"></div> <b>Non Disponibile</b></div>
-                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#333333; margin-right:5px; border-radius:3px;"></div> Weekend / Fuori Orizz.</div>
+                <div style="display:flex; justify-content:center; gap:20px; font-size:12px; margin-bottom: 30px; color:#8B949E;">
+                    <div style="display:flex; align-items:center;"><div style="width:12px; height:12px; background:#EF4444; border-radius:2px; margin-right:5px;"></div> Disponibilità Completa</div>
+                    <div style="display:flex; align-items:center;"><div style="width:12px; height:12px; background:#F59E0B; border-radius:2px; margin-right:5px;"></div> Saturazione Parziale</div>
+                    <div style="display:flex; align-items:center;"><div style="width:12px; height:12px; background:#10B981; border-radius:2px; margin-right:5px;"></div> Saturazione Totale</div>
+                    <div style="display:flex; align-items:center;"><div style="width:12px; height:12px; background:#21262D; border-radius:2px; margin-right:5px;"></div> Fuori Copertura / Festivo</div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -689,7 +593,7 @@ elif ruolo_utente == "Project Manager":
                             prog_att = estrai_progetto_attuale(r_dati)
                             
                             st.markdown(f"<h5 style='text-align:center; color:#F8F9FA; margin-bottom:2px;'>{nome}</h5>", unsafe_allow_html=True)
-                            st.markdown(f"<p style='text-align:center; font-size:11px; color:#8B949E; margin-top:0px; margin-bottom:10px;'>{prog_att}</p>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='text-align:center; font-size:11px; color:#8B949E; margin-top:0px; margin-bottom:10px;'>Rif: {prog_att}</p>", unsafe_allow_html=True)
                             
                             data_libero = datetime.strptime(r_dati['Disponibile_dal'], "%Y-%m-%d").date()
                             occ_attuale = r_dati['Occupazione_%']
@@ -697,7 +601,7 @@ elif ruolo_utente == "Project Manager":
                             html_cal = "<div style='display:grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 30px;'>"
                             
                             for g in giorni_sett:
-                                html_cal += f"<div style='text-align:center; font-size:11px; font-weight:bold; color:#8B949E;'>{g}</div>"
+                                html_cal += f"<div style='text-align:center; font-size:10px; font-weight:700; color:#8B949E;'>{g}</div>"
                                 
                             for week in month_days:
                                 for day in week:
@@ -705,34 +609,42 @@ elif ruolo_utente == "Project Manager":
                                         html_cal += "<div style='visibility:hidden;'></div>"
                                     else:
                                         occ = occ_attuale if day < data_libero else 0
-                                        if day < start_date or day > end_date: bg_color = "#333333"
-                                        elif day.weekday() >= 5: bg_color = "#333333"
-                                        elif occ == 0: bg_color = "#EF4444"
-                                        elif occ < 100: bg_color = "#F59E0B"
-                                        else: bg_color = "#10B981"
+                                        if day < start_date or day > end_date: 
+                                            bg_color = "#21262D"
+                                        elif day.weekday() >= 5: 
+                                            bg_color = "#21262D"
+                                        elif occ == 0: 
+                                            bg_color = "#EF4444"
+                                        elif occ < 100: 
+                                            bg_color = "#F59E0B"
+                                        else: 
+                                            bg_color = "#10B981"
                                             
-                                        html_cal += f"<div style='background-color:{bg_color}; height:35px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:bold; color:#FFF;'>{day.day}</div>"
+                                        html_cal += f"<div style='background-color:{bg_color}; height:32px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:#FFF;'>{day.day}</div>"
                             
                             html_cal += "</div>"
                             st.markdown(html_cal, unsafe_allow_html=True)
 
-        elif pagina_pm == "👤 Analisi Profili":
-            st.markdown("<h1 class='gradient-title'>Indagine Singola Risorsa</h1>", unsafe_allow_html=True)
+        # ----------------------------------------
+        # SOTTO-VISTA: Analisi Profili (Singolo)
+        # ----------------------------------------
+        elif pagina_pm == "Indagine Profili":
+            st.markdown("<h1 class='gradient-title'>Ispezione Dettaglio Risorsa</h1>", unsafe_allow_html=True)
             
-            nome_ricerca = st.selectbox("Seleziona Consulente:", df['Nome'].tolist())
+            nome_ricerca = st.selectbox("Puntatore Identificativo:", df['Nome'].tolist())
             if nome_ricerca:
                 dati_ricerca = df[df['Nome'] == nome_ricerca].iloc[0]
                 prog_att = estrai_progetto_attuale(dati_ricerca)
                 
                 c1, c2, c3 = st.columns(3)
-                c1.markdown(f"<div class='kpi-card blue'><h3>Qualifica</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Ruolo']}</p></div>", unsafe_allow_html=True)
-                c2.markdown(f"<div class='kpi-card orange'><h3>Skills Validate</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Skill']}</p></div>", unsafe_allow_html=True)
-                c3.markdown(f"<div class='kpi-card green'><h3>Stato Attuale</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>Occupato {dati_ricerca['Occupazione_%']}% su {prog_att}</p></div>", unsafe_allow_html=True)
+                c1.markdown(f"<div class='kpi-card blue'><h3>Livello Classificazione</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Ruolo']}</p></div>", unsafe_allow_html=True)
+                c2.markdown(f"<div class='kpi-card orange'><h3>Matrice Competenze</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Skill']}</p></div>", unsafe_allow_html=True)
+                c3.markdown(f"<div class='kpi-card green'><h3>Stato Rete Attuale</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>Saturazione {dati_ricerca['Occupazione_%']}%</p></div>", unsafe_allow_html=True)
                 
                 st.markdown("---")
-                st.subheader("🗓️ Calendario Visuale (Mensile)")
+                st.subheader("Rappresentazione Vettoriale Agenda (Zoom-in)")
                 
-                date_range = st.date_input("Seleziona l'orizzonte totale di analisi:", value=(datetime.today(), datetime.today() + timedelta(days=180)))
+                date_range = st.date_input("Range di Verifica:", value=(datetime.today(), datetime.today() + timedelta(days=180)))
                 
                 if len(date_range) == 2:
                     start_date, end_date = date_range
@@ -742,17 +654,20 @@ elif ruolo_utente == "Project Manager":
                     curr = start_date.replace(day=1)
                     while curr <= end_date:
                         mesi_presenti.append((curr.year, curr.month))
-                        if curr.month == 12: curr = curr.replace(year=curr.year+1, month=1)
-                        else: curr = curr.replace(month=curr.month+1)
+                        if curr.month == 12: 
+                            curr = curr.replace(year=curr.year+1, month=1)
+                        else: 
+                            curr = curr.replace(month=curr.month+1)
                     
-                    if st.session_state.cal_month_idx >= len(mesi_presenti): st.session_state.cal_month_idx = 0
+                    if st.session_state.cal_month_idx >= len(mesi_presenti): 
+                        st.session_state.cal_month_idx = 0
                     
                     col_p, col_m, col_n = st.columns([1,2,1])
-                    if col_p.button("◀ Mese Precedente"):
+                    if col_p.button("Ciclo Precedente"):
                         if st.session_state.cal_month_idx > 0:
                             st.session_state.cal_month_idx -= 1
                             st.rerun()
-                    if col_n.button("Mese Successivo ▶"):
+                    if col_n.button("Ciclo Successivo"):
                         if st.session_state.cal_month_idx < len(mesi_presenti) - 1:
                             st.session_state.cal_month_idx += 1
                             st.rerun()
@@ -768,7 +683,7 @@ elif ruolo_utente == "Project Manager":
                     giorni_sett = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
                     html_cal = "<div style='display:grid; grid-template-columns: repeat(7, 1fr); gap: 10px; max-width: 600px; margin: auto;'>"
                     for g in giorni_sett:
-                        html_cal += f"<div style='text-align:center; font-weight:bold; color:#8B949E;'>{g}</div>"
+                        html_cal += f"<div style='text-align:center; font-weight:700; color:#8B949E;'>{g}</div>"
                         
                     for week in month_days:
                         for day in week:
@@ -776,107 +691,178 @@ elif ruolo_utente == "Project Manager":
                                 html_cal += "<div style='visibility:hidden;'></div>"
                             else:
                                 occ = dati_ricerca['Occupazione_%'] if day < data_libero else 0
-                                if day < start_date or day > end_date: bg_color = "#333333"
-                                elif day.weekday() >= 5: bg_color = "#333333"
-                                elif occ == 0: bg_color = "#EF4444"
-                                elif occ < 100: bg_color = "#F59E0B"
-                                else: bg_color = "#10B981"
+                                if day < start_date or day > end_date: 
+                                    bg_color = "#21262D"
+                                elif day.weekday() >= 5: 
+                                    bg_color = "#21262D"
+                                elif occ == 0: 
+                                    bg_color = "#EF4444"
+                                elif occ < 100: 
+                                    bg_color = "#F59E0B"
+                                else: 
+                                    bg_color = "#10B981"
                                     
-                                html_cal += f"<div style='background-color:{bg_color}; height:60px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:bold; color:#FFF; box-shadow: 0 2px 5px rgba(0,0,0,0.2);'>{day.day}</div>"
+                                html_cal += f"<div style='background-color:{bg_color}; height:60px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:bold; color:#FFF; box-shadow: 0 2px 5px rgba(0,0,0,0.2);'>{day.day}</div>"
                     
                     html_cal += "</div>"
                     st.markdown(html_cal, unsafe_allow_html=True)
 
-        elif pagina_pm == "🗄️ Master Data (Database)":
-            st.markdown("<h1 class='gradient-title'>Vista Tabellare Completa</h1>", unsafe_allow_html=True)
+        # ----------------------------------------
+        # SOTTO-VISTA: Master Data
+        # ----------------------------------------
+        elif pagina_pm == "Master Data Risorse":
+            st.markdown("<h1 class='gradient-title'>Infrastruttura Dati Principale</h1>", unsafe_allow_html=True)
             df_display = df.copy()
-            df_display['Progetto_Attuale'] = df_display.apply(estrai_progetto_attuale, axis=1)
+            df_display['Progetto_Corrente'] = df_display.apply(estrai_progetto_attuale, axis=1)
             df_display = df_display.drop(columns=['Esperienze'], errors='ignore')
             
             st.dataframe(
                 df_display,
                 column_config={
-                    "Occupazione_%": st.column_config.ProgressColumn("Impegno (%)", min_value=0, max_value=100, format="%d%%"),
-                    "Costo_Giorno": st.column_config.NumberColumn("Costo GG", format="€ %d"),
-                    "Tariffa_Vendita": st.column_config.NumberColumn("Tariffa Output", format="€ %d")
+                    "Occupazione_%": st.column_config.ProgressColumn("Saturazione (%)", min_value=0, max_value=100, format="%d%%"),
+                    "Costo_Giorno": st.column_config.NumberColumn("OPEX Unitario", format="€ %d"),
+                    "Tariffa_Vendita": st.column_config.NumberColumn("Mark-up Target", format="€ %d")
                 },
                 hide_index=True, use_container_width=True
             )
 
 # ==========================================
-# VISTA 3: HR (RISORSE UMANE)
+# VISTA 2: CONSULENTE IT
 # ==========================================
-elif ruolo_utente == "HR (Risorse Umane)":
+elif ruolo_utente == "Consulente IT":
+    if not st.session_state.it_logged_in:
+        st.markdown("<h1 class='gradient-title'>Gateway di Rete Personale</h1>", unsafe_allow_html=True)
+        with st.form("login_it_form"):
+            utente_selezionato = st.selectbox("Selettore Identità", df['Nome'].tolist())
+            password_it = st.text_input("Codice Autorizzazione", type="password", help="Codice Base: dev123")
+            if st.form_submit_button("Esegui Handshake"):
+                if password_it == "dev123":
+                    st.session_state.it_logged_in = True
+                    st.session_state.current_it_user = utente_selezionato
+                    st.rerun()
+                else: 
+                    st.error("Handshake fallito. Codice non autorizzato.")
+    else:
+        st.markdown(f"<h1 class='gradient-title'>Area Operativa: {st.session_state.current_it_user}</h1>", unsafe_allow_html=True)
+        if st.button("Abbatti Connessione"):
+            st.session_state.it_logged_in = False
+            st.rerun()
+            
+        dati_utente = df[df['Nome'] == st.session_state.current_it_user].iloc[0]
+        prog_att = estrai_progetto_attuale(dati_utente)
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("<div class='kpi-card blue'><h3>Attributi Profilo</h3>", unsafe_allow_html=True)
+            st.write(f"**Cluster Tecnico:** {dati_utente['Ruolo']}")
+            st.write(f"**Inventario Skill:** {dati_utente['Skill']}")
+            st.write(f"**Carico Operativo:** Saturazione {dati_utente['Occupazione_%']}% (Rif: **{prog_att}**)")
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.subheader("Processo Espansione Skill")
+            nuova_skill = st.text_input("Identificativo Framework (es. GraphQL):")
+            if st.button("Sottoponi per Validazione"):
+                if nuova_skill.strip():
+                    st.session_state.pending_approvals.append({"ID": dati_utente['ID'], "Nome": dati_utente['Nome'], "Skill": nuova_skill.strip()})
+                    st.success("Transazione inviata. Attesa validazione PM.")
+        with c2:
+            st.markdown("<div class='kpi-card orange'><h3>Richiesta Integrazione su Progetto</h3>", unsafe_allow_html=True)
+            st.caption("Modulo di notifica disponibilità verso i centri decisionali.")
+            with st.form("richiesta_alloc"):
+                progetto_req = st.text_input("Codice Cliente / Progetto Target")
+                disp_req = st.slider("Fattore di Carico Previsto (%)", 25, 100, 50, step=25)
+                date_req = st.date_input("Timeline Stimata", value=(datetime.today(), datetime.today() + timedelta(days=30)))
+                if st.form_submit_button("Invia Pacchetto Richiesta"):
+                    if len(date_req) == 2:
+                        st.session_state.pending_allocations.append({
+                            "ID": dati_utente['ID'], "Nome": dati_utente['Nome'], 
+                            "Progetto": progetto_req, "Occupazione": disp_req, 
+                            "Dal": date_req[0], "Al": date_req[1]
+                        })
+                        st.success("Payload trasmesso. Inserito in coda PM.")
+                    else:
+                        st.error("Errore Parsing: Compilare perimetro date completo.")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+# ==========================================
+# VISTA 3: HUMAN RESOURCES
+# ==========================================
+elif ruolo_utente == "Human Resources":
     if not st.session_state.hr_logged_in:
-        st.markdown("<h1 class='gradient-title'>Accesso Dipartimento HR</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='gradient-title'>Gateway Amministrativo HR</h1>", unsafe_allow_html=True)
         with st.form("login_hr_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password", help="Usa hr / hr123")
-            if st.form_submit_button("Accedi"):
+            username = st.text_input("Identificativo Reparto")
+            password = st.text_input("Chiave Accesso Struttura", type="password", help="hr / hr123")
+            if st.form_submit_button("Esegui Login HR"):
                 if username == "hr" and password == "hr123":
                     st.session_state.hr_logged_in = True
                     st.rerun()
-                else: st.error("Credenziali errate.")
+                else: 
+                    st.error("Accesso Denegato. Credenziali incorrette.")
     else:
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("🛠️ Navigazione HR")
-        pagina_hr = st.sidebar.radio("Vai a:", [
-            "🏠 Dashboard HR", 
-            "➕ Onboarding Nuovo Assunto",
-            "✏️ Gestione e Promozioni",
-            "📥 Integrazione Zucchetti", 
-            "🗄️ Master Data Dipendenti"
+        pagina_hr = st.sidebar.radio("MODULI HR ATTIVI", [
+            "Analitiche Strutturali", 
+            "Processo Onboarding",
+            "Manutenzione Inquadramenti",
+            "Interfaccia ERP (Zucchetti)", 
+            "Archivio Generale"
         ])
-        if st.sidebar.button("🚪 Esci (Logout)"):
+        
+        if st.sidebar.button("Uscita di Sicurezza"):
             st.session_state.hr_logged_in = False
             st.rerun()
 
-        if pagina_hr == "🏠 Dashboard HR":
-            st.markdown("<h1 class='gradient-title'>Dashboard Risorse Umane</h1>", unsafe_allow_html=True)
-            st.info("Panoramica sulla composizione della forza lavoro aziendale.")
+        # ----------------------------------------
+        # SOTTO-VISTA: HR Analytics
+        # ----------------------------------------
+        if pagina_hr == "Analitiche Strutturali":
+            st.markdown("<h1 class='gradient-title'>Metriche Globali Risorse</h1>", unsafe_allow_html=True)
             
             c1, c2, c3 = st.columns(3)
-            c1.markdown(f"<div class='kpi-card blue'><h3>Totale Dipendenti (Headcount)</h3><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
-            c2.markdown(f"<div class='kpi-card orange'><h3>Età Media (Figurativa)</h3><h2>32 Anni</h2></div>", unsafe_allow_html=True)
-            c3.markdown(f"<div class='kpi-card green'><h3>Costo Medio GG</h3><h2>€ {df['Costo_Giorno'].mean():.0f}</h2></div>", unsafe_allow_html=True)
+            c1.markdown(f"<div class='kpi-card blue'><h3>Headcount Aggregato</h3><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
+            c2.markdown(f"<div class='kpi-card orange'><h3>Indice Anagrafico Teorico</h3><h2>32 Anni</h2></div>", unsafe_allow_html=True)
+            c3.markdown(f"<div class='kpi-card green'><h3>Costo Base Ponderato</h3><h2>€ {df['Costo_Giorno'].mean():.0f}</h2></div>", unsafe_allow_html=True)
             
             st.markdown("---")
             col_chart1, col_chart2 = st.columns(2)
             with col_chart1:
-                st.subheader("Distribuzione Seniority")
+                st.subheader("Rapporto Classificazioni")
                 df_sen = df['Seniority'].value_counts().reset_index()
                 df_sen.columns = ['Seniority', 'Conteggio']
                 fig1 = px.pie(df_sen, values='Conteggio', names='Seniority', hole=0.4, color_discrete_sequence=px.colors.sequential.Tealgrn)
                 st.plotly_chart(applica_tema_plotly(fig1), use_container_width=True)
             
             with col_chart2:
-                st.subheader("Distribuzione per Ruolo")
-                aree_disponibili = ["Tutte le Aree"] + sorted(list(df['Macro_Area'].unique()))
-                area_selezionata = st.selectbox("Filtra per Macro Area:", aree_disponibili)
+                st.subheader("Distribuzione Assorbimento per Ruoli")
+                aree_disponibili = ["Cluster Globale"] + sorted(list(df['Macro_Area'].unique()))
+                area_selezionata = st.selectbox("Filtro di Contesto:", aree_disponibili)
                 
-                df_ruoli = df if area_selezionata == "Tutte le Aree" else df[df['Macro_Area'] == area_selezionata]
+                df_ruoli = df if area_selezionata == "Cluster Globale" else df[df['Macro_Area'] == area_selezionata]
                 df_ruoli = df_ruoli['Ruolo'].str.replace('Senior ', '').str.replace('Mid ', '').str.replace('Junior ', '').value_counts().reset_index()
                 df_ruoli.columns = ['Ruolo', 'Conteggio']
                 fig2 = px.bar(df_ruoli, x='Ruolo', y='Conteggio', color='Ruolo', color_discrete_sequence=px.colors.sequential.Blues_r)
                 st.plotly_chart(applica_tema_plotly(fig2), use_container_width=True)
 
-        elif pagina_hr == "➕ Onboarding Nuovo Assunto":
-            st.markdown("<h1 class='gradient-title'>Assunzione Nuovo Dipendente</h1>", unsafe_allow_html=True)
-            st.write("Aggiungi una nuova risorsa al Database aziendale. Sarà immediatamente visibile ai Project Manager.")
+        # ----------------------------------------
+        # SOTTO-VISTA: Onboarding Nuovo Assunto
+        # ----------------------------------------
+        elif pagina_pm == "Processo Onboarding":
+            st.markdown("<h1 class='gradient-title'>Creazione Nuova Anagrafica</h1>", unsafe_allow_html=True)
+            st.write("La transazione creerà un record istantaneo disponibile ai Project Manager.")
             
             with st.form("form_onboarding"):
                 col1, col2 = st.columns(2)
-                nuovo_nome = col1.text_input("Nome e Cognome")
-                nuova_sen = col2.selectbox("Seniority", ["Junior", "Mid", "Senior"])
+                nuovo_nome = col1.text_input("Nominativo Legale")
+                nuova_sen = col2.selectbox("Scala Gerarchica", ["Junior", "Mid", "Senior"])
                 
-                nuovo_ruolo = col1.selectbox("Titolo Professionale", ["Frontend Developer", "Backend Developer", "Fullstack Developer", "DevOps Engineer", "Data Scientist", "Data Analyst", "Project Manager", "Business Analyst"])
-                nuove_skill = col2.text_input("Competenze Iniziali (Separate da virgola, es: React, Node)")
+                nuovo_ruolo = col1.selectbox("Dominio d'Inquadramento", ["Frontend Developer", "Backend Developer", "Fullstack Developer", "DevOps Engineer", "Data Scientist", "Data Analyst", "Project Manager", "Business Analyst"])
+                nuove_skill = col2.text_input("Definizione Competenze (csv format)")
                 
-                macro_area_auto = "IT" if "Developer" in nuovo_ruolo or "DevOps" in nuovo_ruolo else "Data Science" if "Data" in nuovo_ruolo else "Risk/Management"
-                costo_gg = col1.number_input("Costo Giornaliero Base (€)", min_value=50, max_value=1000, value=200)
+                costo_gg = col1.number_input("Opex Standardizzato (€/GG)", min_value=50, max_value=1000, value=200)
                 
-                if st.form_submit_button("✅ Conferma Assunzione e Salva a DB"):
+                if st.form_submit_button("Esegui Scrittura su Database"):
                     if nuovo_nome and nuove_skill:
+                        macro_area_auto = "IT" if "Developer" in nuovo_ruolo or "DevOps" in nuovo_ruolo else "Data Science" if "Data" in nuovo_ruolo else "Risk/Management"
                         nuovo_dipendente = pd.DataFrame([{
                             "ID": f"RES-{len(df)+1000}",
                             "Nome": nuovo_nome,
@@ -891,27 +877,29 @@ elif ruolo_utente == "HR (Risorse Umane)":
                             "Disponibile_dal": datetime.now().strftime("%Y-%m-%d")
                         }])
                         st.session_state.df_risorse = pd.concat([st.session_state.df_risorse, nuovo_dipendente], ignore_index=True)
-                        st.success(f"Assunzione di {nuovo_nome} completata! Il dipendente è ora a sistema.")
+                        st.success(f"Log Output: Profilo {nuovo_nome} sincronizzato in Master Data.")
                     else:
-                        st.error("Per favore compila Nome e Competenze.")
+                        st.error("Log Output: Dati obbligatori carenti. Blocco scrittura.")
 
-        elif pagina_hr == "✏️ Gestione e Promozioni":
-            st.markdown("<h1 class='gradient-title'>Gestione Dipendente e Promozioni</h1>", unsafe_allow_html=True)
-            st.write("Aggiorna l'anagrafica, promuovi di livello o modifica il costo di una singola risorsa.")
+        # ----------------------------------------
+        # SOTTO-VISTA: Manutenzione e Promozioni
+        # ----------------------------------------
+        elif pagina_hr == "Manutenzione Inquadramenti":
+            st.markdown("<h1 class='gradient-title'>Upgrade Livelli e Manutenzione</h1>", unsafe_allow_html=True)
             
-            nome_ricerca = st.selectbox("Seleziona Dipendente da modificare:", df['Nome'].tolist())
+            nome_ricerca = st.selectbox("Record Input (Lookup):", df['Nome'].tolist())
             if nome_ricerca:
                 idx = df.index[df['Nome'] == nome_ricerca].tolist()[0]
                 dati_attuali = df.iloc[idx]
                 prog_att = estrai_progetto_attuale(dati_attuali)
                 
-                st.info(f"💡 Attualmente su: **{prog_att}** (Occupato al {dati_attuali['Occupazione_%']}%)")
+                st.info(f"Monitor: Record attualmente impiegato su **{prog_att}** (Saturazione al {dati_attuali['Occupazione_%']}%)")
                 
                 with st.form("form_modifica_dipendente"):
-                    st.subheader(f"Modifica Scheda: {dati_attuali['Nome']}")
+                    st.subheader(f"Buffer Modifiche: {dati_attuali['Nome']}")
                     c1, c2 = st.columns(2)
                     
-                    nuovo_nome = c1.text_input("Nome e Cognome", value=dati_attuali['Nome'])
+                    nuovo_nome = c1.text_input("Rettifica Nominativo", value=dati_attuali['Nome'])
                     
                     ruolo_attuale_puro = dati_attuali['Ruolo'].replace('Senior ', '').replace('Mid ', '').replace('Junior ', '')
                     ruoli_disponibili = ["Frontend Developer", "Backend Developer", "Fullstack Developer", "DevOps Engineer", "Data Scientist", "Data Analyst", "Project Manager", "Business Analyst"]
@@ -919,61 +907,141 @@ elif ruolo_utente == "HR (Risorse Umane)":
                         ruoli_disponibili.append(ruolo_attuale_puro)
                     
                     index_sen = ["Junior", "Mid", "Senior"].index(dati_attuali['Seniority'])
-                    nuova_sen = c1.selectbox("Seniority", ["Junior", "Mid", "Senior"], index=index_sen)
+                    nuova_sen = c1.selectbox("Cambio Gerarchico", ["Junior", "Mid", "Senior"], index=index_sen)
                     
                     index_ruolo = ruoli_disponibili.index(ruolo_attuale_puro)
-                    nuovo_ruolo = c2.selectbox("Titolo Professionale", ruoli_disponibili, index=index_ruolo)
+                    nuovo_ruolo = c2.selectbox("Dominio Professionale", ruoli_disponibili, index=index_ruolo)
                     
-                    nuove_skill = st.text_input("Competenze (Separate da virgola)", value=dati_attuali['Skill'])
+                    nuove_skill = st.text_input("Aggiunta Competenze", value=dati_attuali['Skill'])
                     
                     c3, c4 = st.columns(2)
-                    costo_gg = c3.number_input("Costo Giornaliero Base (€)", min_value=50, max_value=2000, value=int(dati_attuali['Costo_Giorno']))
-                    tariffa_vendita = c4.number_input("Tariffa di Vendita (€)", min_value=50, max_value=3000, value=int(dati_attuali['Tariffa_Vendita']))
+                    costo_gg = c3.number_input("Modifica OPEX Diretto (€)", min_value=50, max_value=2000, value=int(dati_attuali['Costo_Giorno']))
+                    tariffa_vendita = c4.number_input("Modifica Mark-up Base (€)", min_value=50, max_value=3000, value=int(dati_attuali['Tariffa_Vendita']))
                     
-                    if st.form_submit_button("💾 Salva Modifiche al Profilo"):
+                    if st.form_submit_button("Esegui Aggiornamento Profilo"):
                         st.session_state.df_risorse.at[idx, 'Nome'] = nuovo_nome
                         st.session_state.df_risorse.at[idx, 'Seniority'] = nuova_sen
                         st.session_state.df_risorse.at[idx, 'Ruolo'] = f"{nuova_sen} {nuovo_ruolo}"
                         st.session_state.df_risorse.at[idx, 'Skill'] = nuove_skill
                         st.session_state.df_risorse.at[idx, 'Costo_Giorno'] = costo_gg
                         st.session_state.df_risorse.at[idx, 'Tariffa_Vendita'] = tariffa_vendita
-                        st.success(f"I dati di {nuovo_nome} sono stati aggiornati con successo nel Master Data!")
+                        st.success(f"Update Eseguito: I nuovi parametri per {nuovo_nome} sono validi.")
                         st.rerun()
 
-        elif pagina_hr == "📥 Integrazione Zucchetti":
-            st.markdown("<h1 class='gradient-title'>Sincronizzazione Software Paghe / Zucchetti</h1>", unsafe_allow_html=True)
-            st.info("Trattandosi di un modulo disaccoppiato, puoi scaricare il template o fare l'upload massivo per aggiornare le anagrafiche dei dipendenti.")
+        # ----------------------------------------
+        # SOTTO-VISTA: Zucchetti Sync
+        # ----------------------------------------
+        elif pagina_hr == "Interfaccia ERP (Zucchetti)":
+            st.markdown("<h1 class='gradient-title'>Ponte di Trasmissione ERP Software Paghe</h1>", unsafe_allow_html=True)
+            st.info("Protocollo di interscambio asincrono per l'allineamento dei Database Centrali.")
             
-            st.subheader("1. Esporta dati attuali (Per Zucchetti)")
+            st.subheader("Fase 1: Estrazione Dati per Inbound ERP")
             df_export = df.drop(columns=['Esperienze', 'Macro_Area'], errors='ignore')
             csv_export = df_export.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Scarica Export Zucchetti (CSV)", data=csv_export, file_name='export_hr_zucchetti.csv', mime='text/csv')
+            st.download_button("Genera Pacchetto CSV (.csv)", data=csv_export, file_name='export_hr_zucchetti.csv', mime='text/csv')
             
             st.markdown("---")
-            st.subheader("2. Carica aggiornamenti da Zucchetti")
-            uploaded_file = st.file_uploader("Upload file (.csv o .xlsx)", type=['csv', 'xlsx'])
+            st.subheader("Fase 2: Importazione Dati da Outbound ERP")
+            uploaded_file = st.file_uploader("Upload Tracciato (.csv o .xlsx)", type=['csv', 'xlsx'])
             
             if uploaded_file is not None:
-                with st.spinner("Sincronizzazione DB in corso..."):
+                with st.spinner("Decodifica buffer in corso..."):
                     if uploaded_file.name.endswith('.csv'):
                         new_df = pd.read_csv(uploaded_file)
                     else:
                         new_df = pd.read_excel(uploaded_file)
-                    st.success("File letto correttamente! (In produzione andrebbe a sovrascrivere o fare un merge con il DB)")
+                    st.success("Codice di Ritorno 200: Lettura eseguita. Pronti per unificazione tabella.")
                     st.dataframe(new_df.head(5))
 
-        elif pagina_hr == "🗄️ Master Data Dipendenti":
-            st.markdown("<h1 class='gradient-title'>Anagrafica Completa Dipendenti</h1>", unsafe_allow_html=True)
-            st.write("Vista raw del database aziendale.")
+        # ----------------------------------------
+        # SOTTO-VISTA: Database Dipendenti
+        # ----------------------------------------
+        elif pagina_hr == "Archivio Generale":
+            st.markdown("<h1 class='gradient-title'>Ispezione Diretta Records</h1>", unsafe_allow_html=True)
             df_display = df.copy()
-            df_display['Progetto_Attuale'] = df_display.apply(estrai_progetto_attuale, axis=1)
+            df_display['Istanza_Corrente'] = df_display.apply(estrai_progetto_attuale, axis=1)
             df_display = df_display.drop(columns=['Esperienze', 'Macro_Area'], errors='ignore')
             
             st.dataframe(
                 df_display,
                 column_config={
-                    "Occupazione_%": st.column_config.ProgressColumn("Occupato al (%)", min_value=0, max_value=100, format="%d%%"),
-                    "Costo_Giorno": st.column_config.NumberColumn("Costo (€)", format="€ %d")
+                    "Occupazione_%": st.column_config.ProgressColumn("Indice Occupazione", min_value=0, max_value=100, format="%d%%"),
+                    "Costo_Giorno": st.column_config.NumberColumn("Tariffario (€)", format="€ %d")
                 },
                 hide_index=True, use_container_width=True
             )
+
+
+# ==========================================
+# 4. COMPONENTE COPILOT AI (WIDGET INFERIORE)
+# ==========================================
+if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
+    # Spaziatura e linea divisoria
+    st.sidebar.markdown("<br><br><br><hr style='border-color: rgba(255,255,255,0.05);'>", unsafe_allow_html=True)
+    
+    with st.sidebar.popover("Terminale Copilot AI", use_container_width=True):
+        if st.session_state.groq_api_key and st.session_state.groq_api_key.startswith("gsk_"):
+            st.caption("Stato Nodo: **Llama-3 LLM (Attivo)**")
+        else:
+            st.caption("Stato Nodo: **Regex Fallback (Attivo)**")
+            
+        for msg in st.session_state.chat_msgs:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
+        
+        if st.session_state.bot_action:
+            act = st.session_state.bot_action
+            st.info(act['desc'])
+            
+            if act['type'] == 'alloca':
+                with st.form("form_bot_conferma"):
+                    c1, c2 = st.columns(2)
+                    nuovo_cliente = c1.text_input("Tag Commessa", value=act['cliente'])
+                    nuova_perc = c2.number_input("Parametro Occupazione %", min_value=0, max_value=100, value=act['perc'])
+                    date_range = st.date_input("Restrizione Temporale", value=(datetime.today(), datetime.today() + timedelta(days=30)))
+                    
+                    c_btn1, c_btn2 = st.columns(2)
+                    submit_bot = c_btn1.form_submit_button("Autorizza Transazione")
+                    cancel_bot = c_btn2.form_submit_button("Sospendi")
+                    
+                    if submit_bot:
+                        if len(date_range) == 2:
+                            act['cliente'] = nuovo_cliente
+                            act['perc'] = nuova_perc
+                            act['end_date'] = date_range[1]
+                            esegui_azione_chatbot(act)
+                            st.rerun()
+                        else:
+                            st.error("Errore Sintassi: Data di termine necessaria.")
+                    if cancel_bot:
+                        st.session_state.bot_action = None
+                        st.session_state.chat_msgs.append({"role": "assistant", "content": "Transazione abortita."})
+                        st.rerun()
+            else:
+                col_ok, col_ko = st.columns(2)
+                if col_ok.button("Autorizza Transazione"):
+                    esegui_azione_chatbot(act)
+                    st.rerun()
+                if col_ko.button("Sospendi"):
+                    st.session_state.bot_action = None
+                    st.session_state.chat_msgs.append({"role": "assistant", "content": "Transazione abortita."})
+                    st.rerun()
+
+        if prompt := st.chat_input("Esegui istruzione di sistema..."):
+            st.session_state.chat_msgs.append({"role": "user", "content": prompt})
+            with st.spinner("Analisi sintattica in corso..."):
+                action_dict, error_msg = parse_chatbot_intent_llm(prompt, st.session_state.df_risorse, st.session_state.groq_api_key)
+            
+            if error_msg:
+                st.session_state.chat_msgs.append({"role": "assistant", "content": error_msg})
+            else:
+                st.session_state.bot_action = action_dict
+                st.session_state.chat_msgs.append({"role": "assistant", "content": "Preparazione Payload. Attendere conferma operatore:"})
+            st.rerun()
+
+    with st.sidebar.expander("Configurazione Root Backend AI"):
+        st.write("Iniezione chiave per motore LLM Llama-3.")
+        api_key = st.text_input("Parametro Groq API Key (gsk_...):", value=st.session_state.groq_api_key, type="password")
+        if st.button("Forza Aggiornamento"):
+            st.session_state.groq_api_key = api_key
+            st.success("Parametri salvati sul nodo.")
