@@ -11,52 +11,75 @@ import json
 # ==========================================
 # 1. INIZIALIZZAZIONE DATI E SESSIONI
 # ==========================================
-st.set_page_config(page_title="AI Resource Manager", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="AI Resource Manager", page_icon="🚀", layout="wide", initial_sidebar_state="expanded")
 
-# --- INIEZIONE CSS SAAS (MODERN DARK THEME) ---
+# --- INIEZIONE CSS SAAS PREMIUM ---
 st.markdown("""
 <style>
-    /* Sfondo e font di base */
-    .stApp { font-family: 'Inter', sans-serif; }
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
     
-    /* Stile per i bottoni primari */
+    html, body, [class*="css"] { font-family: 'Outfit', sans-serif !important; }
+    
     .stButton>button {
         border-radius: 8px !important;
         font-weight: 600 !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
         transition: all 0.3s ease !important;
     }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        border-color: #3B82F6 !important;
+        color: #3B82F6 !important;
+    }
     
-    /* KPI Cards personalizzate */
+    .gradient-title {
+        background: linear-gradient(45deg, #3B82F6, #10B981);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 700;
+        font-size: 2.8rem;
+        margin-bottom: 0.5rem;
+        margin-top: -1rem;
+    }
+    
     .kpi-card {
-        background-color: #1E2127;
-        padding: 20px;
-        border-radius: 12px;
-        border-left: 5px solid #1E88E5;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        background: linear-gradient(145deg, rgba(30,33,39,0.7) 0%, rgba(20,22,26,0.9) 100%);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 8px 32px 0 rgba(0,0,0,0.2);
+        position: relative;
+        overflow: hidden;
         margin-bottom: 20px;
+        transition: transform 0.3s ease;
     }
-    .kpi-card.green { border-left-color: #00CC96; }
-    .kpi-card.red { border-left-color: #FF4B4B; }
-    .kpi-card.orange { border-left-color: #FFD700; }
-    .kpi-card h3 { margin-top: 0; font-size: 13px; color: #9BA1A6; text-transform: uppercase; letter-spacing: 1px;}
-    .kpi-card h2 { margin: 0; font-size: 28px; color: #FFFFFF; font-weight: 700;}
+    .kpi-card:hover { transform: translateY(-5px); }
+    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; }
+    .kpi-card.blue::before { background: #3B82F6; box-shadow: 0 0 10px #3B82F6;}
+    .kpi-card.green::before { background: #10B981; box-shadow: 0 0 10px #10B981;}
+    .kpi-card.red::before { background: #EF4444; box-shadow: 0 0 10px #EF4444;}
+    .kpi-card.orange::before { background: #F59E0B; box-shadow: 0 0 10px #F59E0B;}
     
-    /* Stile per le Tabs di Streamlit */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 24px;
-    }
+    .kpi-card h3 { color: #8B949E; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-top: 0; margin-bottom: 8px;}
+    .kpi-card h2 { color: #F8F9FA; font-size: 2.2rem; font-weight: 700; margin: 0;}
+    
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: transparent;
-        border-radius: 4px 4px 0px 0px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-        font-size: 16px;
+        font-size: 1.1rem;
         font-weight: 600;
+        padding: 10px 20px;
     }
 </style>
 """, unsafe_allow_html=True)
+
+# Funzione helper per rendere i grafici Plotly coerenti col tema scuro
+def applica_tema_plotly(fig):
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family="Outfit", color="#8B949E"), margin=dict(l=20, r=20, t=40, b=20)
+    )
+    return fig
 
 @st.cache_data
 def genera_database():
@@ -132,11 +155,13 @@ if "pending_allocations" not in st.session_state: st.session_state.pending_alloc
 if "cal_month_idx" not in st.session_state: st.session_state.cal_month_idx = 0
 if "team_cal_idx" not in st.session_state: st.session_state.team_cal_idx = 0
 
-# Variabili Chatbot
+# Variabili Chatbot e API Key Groq preimpostata
 if "chat_msgs" not in st.session_state:
     st.session_state.chat_msgs = [{"role": "assistant", "content": "Ciao! Sono il tuo Copilot AI. Scrivimi un comando, ad esempio:\n- *Alloca Marco Rossi su TIM al 50%*\n- *Promuovi Giulia Bianchi a Senior*"}]
 if "bot_action" not in st.session_state: st.session_state.bot_action = None
-if "groq_api_key" not in st.session_state: st.session_state.groq_api_key = "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"
+
+if "groq_api_key" not in st.session_state: 
+    st.session_state.groq_api_key = "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"
 
 if "pm_logged_in" not in st.session_state: st.session_state.pm_logged_in = False
 if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
@@ -220,6 +245,7 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     
     try:
         response = requests.post(url, headers=headers, json=payload)
+        
         if response.status_code != 200: 
             return None, f"⚠️ Errore API Groq: {response.text}"
             
@@ -373,7 +399,7 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
 # ==========================================
 if ruolo_utente == "Consulente":
     if not st.session_state.it_logged_in:
-        st.title("🔒 Accesso Area Personale")
+        st.markdown("<h1 class='gradient-title'>Accesso Area Personale</h1>", unsafe_allow_html=True)
         with st.form("login_it_form"):
             utente_selezionato = st.selectbox("Chi sei?", df['Nome'].tolist())
             password_it = st.text_input("Password", type="password", help="Password: dev123")
@@ -384,7 +410,7 @@ if ruolo_utente == "Consulente":
                     st.rerun()
                 else: st.error("Password errata.")
     else:
-        st.title(f"👤 Dashboard Personale - {st.session_state.current_it_user}")
+        st.markdown(f"<h1 class='gradient-title'>Dashboard Personale - {st.session_state.current_it_user}</h1>", unsafe_allow_html=True)
         if st.button("Esci (Logout)"):
             st.session_state.it_logged_in = False
             st.rerun()
@@ -394,11 +420,12 @@ if ruolo_utente == "Consulente":
         
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader("Le tue Info")
+            st.markdown("<div class='kpi-card blue'><h3>Le tue Info</h3>", unsafe_allow_html=True)
             st.write(f"**Qualifica:** {dati_utente['Ruolo']}")
             st.write(f"**Skill Validate:** {dati_utente['Skill']}")
             st.write(f"**Stato:** Occupato al {dati_utente['Occupazione_%']}% su **{prog_att}**")
-            st.markdown("---")
+            st.markdown("</div>", unsafe_allow_html=True)
+            
             st.write("**Richiedi Validazione Skill**")
             nuova_skill = st.text_input("Aggiungi competenza (es. GraphQL):")
             if st.button("Invia Skill al PM"):
@@ -406,7 +433,7 @@ if ruolo_utente == "Consulente":
                     st.session_state.pending_approvals.append({"ID": dati_utente['ID'], "Nome": dati_utente['Nome'], "Skill": nuova_skill.strip()})
                     st.success("Richiesta inviata!")
         with c2:
-            st.subheader("📅 Richiedi Allocazione / Slot")
+            st.markdown("<div class='kpi-card orange'><h3>Richiedi Allocazione / Slot</h3>", unsafe_allow_html=True)
             st.info("Invia una richiesta al PM per occupare uno slot in agenda.")
             with st.form("richiesta_alloc"):
                 progetto_req = st.text_input("Nome Progetto / Cliente")
@@ -422,13 +449,14 @@ if ruolo_utente == "Consulente":
                         st.success("Richiesta di allocazione inviata al manager!")
                     else:
                         st.error("Seleziona una data di inizio e fine.")
+            st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
 # VISTA 2: PROJECT MANAGER
 # ==========================================
 elif ruolo_utente == "Project Manager":
     if not st.session_state.pm_logged_in:
-        st.title("🔒 Accesso PM")
+        st.markdown("<h1 class='gradient-title'>Accesso Area Manager</h1>", unsafe_allow_html=True)
         with st.form("login_pm_form"):
             username = st.text_input("Username")
             password = st.text_input("Password", type="password", help="admin / admin123")
@@ -457,7 +485,7 @@ elif ruolo_utente == "Project Manager":
             st.rerun()
 
         if pagina_pm == "🏠 Homepage & Alert":
-            st.title("Centro di Controllo Manageriale")
+            st.markdown("<h1 class='gradient-title'>Centro di Controllo Manageriale</h1>", unsafe_allow_html=True)
             if num_req_alloc > 0:
                 st.warning(f"🔔 **ATTENZIONE:** Hai **{num_req_alloc}** nuove richieste di allocazione in attesa.")
             
@@ -471,10 +499,10 @@ elif ruolo_utente == "Project Manager":
             revenue_attiva_gg = (df['Tariffa_Vendita'] * (df['Occupazione_%']/100)).sum()
             
             c1, c2, c3, c4 = st.columns(4)
-            c1.markdown(f"<div class='kpi-card'><h3>Risorse Totali</h3><h2>{tot_risorse}</h2></div>", unsafe_allow_html=True)
-            c2.markdown(f"<div class='kpi-card'><h3>Staffate</h3><h2>{occupate}</h2></div>", unsafe_allow_html=True)
-            c3.markdown(f"<div class='kpi-card red'><h3>Bench (Perdita GG)</h3><h2>€ {mancati_incassi_gg:,.0f}</h2></div>", unsafe_allow_html=True)
-            c4.markdown(f"<div class='kpi-card green'><h3>Revenue GG Attesa</h3><h2>€ {revenue_attiva_gg:,.0f}</h2></div>", unsafe_allow_html=True)
+            c1.markdown(f"<div class='kpi-card blue'><h3>Risorse Totali</h3><h2>{tot_risorse}</h2></div>", unsafe_allow_html=True)
+            c2.markdown(f"<div class='kpi-card'><h3>Staffate Attive</h3><h2>{occupate}</h2></div>", unsafe_allow_html=True)
+            c3.markdown(f"<div class='kpi-card red'><h3>Bench (Mancati Ricavi GG)</h3><h2>€ {mancati_incassi_gg:,.0f}</h2></div>", unsafe_allow_html=True)
+            c4.markdown(f"<div class='kpi-card green'><h3>Revenue Attesa GG</h3><h2>€ {revenue_attiva_gg:,.0f}</h2></div>", unsafe_allow_html=True)
             
             st.markdown("---")
             st.subheader("📊 Bilancio Portafoglio: Ricavi Attivi vs Mancati Ricavi")
@@ -483,11 +511,11 @@ elif ruolo_utente == "Project Manager":
                 "Valore Giornaliero": [mancati_incassi_gg, revenue_attiva_gg]
             })
             fig_fin = px.pie(df_fin, values='Valore Giornaliero', names='Categoria', hole=0.3,
-                             color='Categoria', color_discrete_map={"Mancati Ricavi (Bench)": "#FF4B4B", "Ricavi Attivi (Staffati)": "#00CC96"})
-            st.plotly_chart(fig_fin, use_container_width=True)
+                             color='Categoria', color_discrete_map={"Mancati Ricavi (Bench)": "#EF4444", "Ricavi Attivi (Staffati)": "#10B981"})
+            st.plotly_chart(applica_tema_plotly(fig_fin), use_container_width=True)
 
         elif pagina_pm == "🚀 Scoping & Staffing AI":
-            st.title("🤖 Scoping Dinamico & Scenario Analysis")
+            st.markdown("<h1 class='gradient-title'>Scoping Dinamico & Scenario Analysis</h1>", unsafe_allow_html=True)
             
             st.info("""
             **AI-enabled Staffing Copilot Roadmap**
@@ -530,7 +558,6 @@ elif ruolo_utente == "Project Manager":
                     st.session_state.team_data = pd.DataFrame(team_proposto)
 
             if "wbs_data" in st.session_state and not st.session_state.wbs_data.empty:
-                # --- TABS PER LA UI MIGLIORATA ---
                 tab_wbs, tab_team = st.tabs(["📋 1. WBS & Stima Tempi", "💰 2. Team Consigliato e Marginalità"])
                 
                 with tab_wbs:
@@ -547,14 +574,14 @@ elif ruolo_utente == "Project Manager":
                             costo_totale_progetto += costo_fase
                             proposta_commerciale += costo_fase * (1 + (membro.iloc[0]['Margine_%'] / 100))
                     
-                    st.markdown("### Breakdown Finanziario (Tempo Reale)")
+                    st.markdown("<br>### Breakdown Finanziario (Tempo Reale)", unsafe_allow_html=True)
                     c_fin1, c_fin2, c_fin3 = st.columns(3)
                     c_fin1.markdown(f"<div class='kpi-card orange'><h3>Costo Vivo Progetto</h3><h2>€ {costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
-                    c_fin2.markdown(f"<div class='kpi-card'><h3>Proposta Commerciale</h3><h2>€ {proposta_commerciale:,.0f}</h2></div>", unsafe_allow_html=True)
+                    c_fin2.markdown(f"<div class='kpi-card blue'><h3>Proposta Commerciale</h3><h2>€ {proposta_commerciale:,.0f}</h2></div>", unsafe_allow_html=True)
                     c_fin3.markdown(f"<div class='kpi-card green'><h3>Margine Netto Finale</h3><h2>€ {proposta_commerciale - costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
 
         elif pagina_pm == tab_allocazioni:
-            st.title("Gestione Agende e Allocazioni")
+            st.markdown("<h1 class='gradient-title'>Gestione Agende e Allocazioni</h1>", unsafe_allow_html=True)
             
             st.subheader("1. Richieste in attesa")
             if len(st.session_state.pending_allocations) > 0:
@@ -595,7 +622,7 @@ elif ruolo_utente == "Project Manager":
                     st.success(f"✅ {r_scelta} allocato con successo!")
 
         elif pagina_pm == "👥 Pianificazione Team (Scheduling)":
-            st.title("Scheduling Assistant Team")
+            st.markdown("<h1 class='gradient-title'>Scheduling Assistant Team</h1>", unsafe_allow_html=True)
             st.write("Componi il tuo team e verifica la disponibilità incrociata attraverso i calendari visivi.")
             
             c_f1, c_f2 = st.columns(2)
@@ -638,13 +665,13 @@ elif ruolo_utente == "Project Manager":
                 mesi_ita = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
                 nome_mese = mesi_ita[mese_corr]
                 
-                col_m.markdown(f"<h3 style='text-align:center; margin-top:0;'>{nome_mese} {anno_corr}</h3>", unsafe_allow_html=True)
+                col_m.markdown(f"<h3 style='text-align:center; color:#3B82F6; margin-top:0;'>{nome_mese} {anno_corr}</h3>", unsafe_allow_html=True)
                 
                 st.markdown("""
                 <div style="display:flex; justify-content:center; gap:20px; font-size:12px; margin-bottom: 30px;">
-                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FF4B4B; margin-right:5px; border-radius:3px;"></div> <b>Disponibile (Bench)</b></div>
-                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FFD700; margin-right:5px; border-radius:3px;"></div> <b>Parz. Occupato</b></div>
-                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#00CC96; margin-right:5px; border-radius:3px;"></div> <b>Non Disponibile</b></div>
+                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#EF4444; margin-right:5px; border-radius:3px;"></div> <b>Disponibile (Bench)</b></div>
+                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#F59E0B; margin-right:5px; border-radius:3px;"></div> <b>Parz. Occupato</b></div>
+                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#10B981; margin-right:5px; border-radius:3px;"></div> <b>Non Disponibile</b></div>
                     <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#333333; margin-right:5px; border-radius:3px;"></div> Weekend / Fuori Orizz.</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -661,8 +688,8 @@ elif ruolo_utente == "Project Manager":
                             r_dati = df[df['Nome'] == nome].iloc[0]
                             prog_att = estrai_progetto_attuale(r_dati)
                             
-                            st.markdown(f"<h5 style='text-align:center; color:#1E88E5; margin-bottom:2px;'>{nome}</h5>", unsafe_allow_html=True)
-                            st.markdown(f"<p style='text-align:center; font-size:11px; color:#888; margin-top:0px; margin-bottom:10px;'>{prog_att}</p>", unsafe_allow_html=True)
+                            st.markdown(f"<h5 style='text-align:center; color:#F8F9FA; margin-bottom:2px;'>{nome}</h5>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='text-align:center; font-size:11px; color:#8B949E; margin-top:0px; margin-bottom:10px;'>{prog_att}</p>", unsafe_allow_html=True)
                             
                             data_libero = datetime.strptime(r_dati['Disponibile_dal'], "%Y-%m-%d").date()
                             occ_attuale = r_dati['Occupazione_%']
@@ -670,7 +697,7 @@ elif ruolo_utente == "Project Manager":
                             html_cal = "<div style='display:grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 30px;'>"
                             
                             for g in giorni_sett:
-                                html_cal += f"<div style='text-align:center; font-size:11px; font-weight:bold; color:#888;'>{g}</div>"
+                                html_cal += f"<div style='text-align:center; font-size:11px; font-weight:bold; color:#8B949E;'>{g}</div>"
                                 
                             for week in month_days:
                                 for day in week:
@@ -680,9 +707,9 @@ elif ruolo_utente == "Project Manager":
                                         occ = occ_attuale if day < data_libero else 0
                                         if day < start_date or day > end_date: bg_color = "#333333"
                                         elif day.weekday() >= 5: bg_color = "#333333"
-                                        elif occ == 0: bg_color = "#FF4B4B"
-                                        elif occ < 100: bg_color = "#FFD700"
-                                        else: bg_color = "#00CC96"
+                                        elif occ == 0: bg_color = "#EF4444"
+                                        elif occ < 100: bg_color = "#F59E0B"
+                                        else: bg_color = "#10B981"
                                             
                                         html_cal += f"<div style='background-color:{bg_color}; height:35px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:bold; color:#FFF;'>{day.day}</div>"
                             
@@ -690,7 +717,7 @@ elif ruolo_utente == "Project Manager":
                             st.markdown(html_cal, unsafe_allow_html=True)
 
         elif pagina_pm == "👤 Analisi Profili":
-            st.title("Indagine Singola Risorsa")
+            st.markdown("<h1 class='gradient-title'>Indagine Singola Risorsa</h1>", unsafe_allow_html=True)
             
             nome_ricerca = st.selectbox("Seleziona Consulente:", df['Nome'].tolist())
             if nome_ricerca:
@@ -698,9 +725,9 @@ elif ruolo_utente == "Project Manager":
                 prog_att = estrai_progetto_attuale(dati_ricerca)
                 
                 c1, c2, c3 = st.columns(3)
-                c1.info(f"**Qualifica:** {dati_ricerca['Ruolo']}")
-                c2.success(f"**Skills:** {dati_ricerca['Skill']}")
-                c3.warning(f"**Stato Attuale:** Occupato {dati_ricerca['Occupazione_%']}% | **Progetto:** {prog_att}")
+                c1.markdown(f"<div class='kpi-card blue'><h3>Qualifica</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Ruolo']}</p></div>", unsafe_allow_html=True)
+                c2.markdown(f"<div class='kpi-card orange'><h3>Skills Validate</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Skill']}</p></div>", unsafe_allow_html=True)
+                c3.markdown(f"<div class='kpi-card green'><h3>Stato Attuale</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>Occupato {dati_ricerca['Occupazione_%']}% su {prog_att}</p></div>", unsafe_allow_html=True)
                 
                 st.markdown("---")
                 st.subheader("🗓️ Calendario Visuale (Mensile)")
@@ -733,7 +760,7 @@ elif ruolo_utente == "Project Manager":
                     anno_corr, mese_corr = mesi_presenti[st.session_state.cal_month_idx]
                     mesi_ita = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
                     nome_mese = mesi_ita[mese_corr]
-                    col_m.markdown(f"<h3 style='text-align:center; margin-top:0;'>{nome_mese} {anno_corr}</h3>", unsafe_allow_html=True)
+                    col_m.markdown(f"<h3 style='text-align:center; color:#3B82F6; margin-top:0;'>{nome_mese} {anno_corr}</h3>", unsafe_allow_html=True)
                     
                     cal = calendar.Calendar(firstweekday=0)
                     month_days = cal.monthdatescalendar(anno_corr, mese_corr)
@@ -741,7 +768,7 @@ elif ruolo_utente == "Project Manager":
                     giorni_sett = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
                     html_cal = "<div style='display:grid; grid-template-columns: repeat(7, 1fr); gap: 10px; max-width: 600px; margin: auto;'>"
                     for g in giorni_sett:
-                        html_cal += f"<div style='text-align:center; font-weight:bold; color:#888;'>{g}</div>"
+                        html_cal += f"<div style='text-align:center; font-weight:bold; color:#8B949E;'>{g}</div>"
                         
                     for week in month_days:
                         for day in week:
@@ -751,22 +778,21 @@ elif ruolo_utente == "Project Manager":
                                 occ = dati_ricerca['Occupazione_%'] if day < data_libero else 0
                                 if day < start_date or day > end_date: bg_color = "#333333"
                                 elif day.weekday() >= 5: bg_color = "#333333"
-                                elif occ == 0: bg_color = "#FF4B4B"
-                                elif occ < 100: bg_color = "#FFD700"
-                                else: bg_color = "#00CC96"
+                                elif occ == 0: bg_color = "#EF4444"
+                                elif occ < 100: bg_color = "#F59E0B"
+                                else: bg_color = "#10B981"
                                     
-                                html_cal += f"<div style='background-color:{bg_color}; height:60px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:bold; color:#FFF;'>{day.day}</div>"
+                                html_cal += f"<div style='background-color:{bg_color}; height:60px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:bold; color:#FFF; box-shadow: 0 2px 5px rgba(0,0,0,0.2);'>{day.day}</div>"
                     
                     html_cal += "</div>"
                     st.markdown(html_cal, unsafe_allow_html=True)
 
         elif pagina_pm == "🗄️ Master Data (Database)":
-            st.title("Vista Tabellare Completa")
+            st.markdown("<h1 class='gradient-title'>Vista Tabellare Completa</h1>", unsafe_allow_html=True)
             df_display = df.copy()
             df_display['Progetto_Attuale'] = df_display.apply(estrai_progetto_attuale, axis=1)
             df_display = df_display.drop(columns=['Esperienze'], errors='ignore')
             
-            # --- TABELLA SMART CON CONFIGURAZIONI VISIVE ---
             st.dataframe(
                 df_display,
                 column_config={
@@ -782,7 +808,7 @@ elif ruolo_utente == "Project Manager":
 # ==========================================
 elif ruolo_utente == "HR (Risorse Umane)":
     if not st.session_state.hr_logged_in:
-        st.title("🔒 Accesso HR")
+        st.markdown("<h1 class='gradient-title'>Accesso Dipartimento HR</h1>", unsafe_allow_html=True)
         with st.form("login_hr_form"):
             username = st.text_input("Username")
             password = st.text_input("Password", type="password", help="Usa hr / hr123")
@@ -806,13 +832,13 @@ elif ruolo_utente == "HR (Risorse Umane)":
             st.rerun()
 
         if pagina_hr == "🏠 Dashboard HR":
-            st.title("Dashboard Risorse Umane")
+            st.markdown("<h1 class='gradient-title'>Dashboard Risorse Umane</h1>", unsafe_allow_html=True)
             st.info("Panoramica sulla composizione della forza lavoro aziendale.")
             
             c1, c2, c3 = st.columns(3)
-            c1.markdown(f"<div class='kpi-card'><h3>Totale Dipendenti</h3><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
-            c2.markdown(f"<div class='kpi-card'><h3>Età Media (Figurativa)</h3><h2>32 Anni</h2></div>", unsafe_allow_html=True)
-            c3.markdown(f"<div class='kpi-card'><h3>Costo Medio GG</h3><h2>€ {df['Costo_Giorno'].mean():.0f}</h2></div>", unsafe_allow_html=True)
+            c1.markdown(f"<div class='kpi-card blue'><h3>Totale Dipendenti (Headcount)</h3><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
+            c2.markdown(f"<div class='kpi-card orange'><h3>Età Media (Figurativa)</h3><h2>32 Anni</h2></div>", unsafe_allow_html=True)
+            c3.markdown(f"<div class='kpi-card green'><h3>Costo Medio GG</h3><h2>€ {df['Costo_Giorno'].mean():.0f}</h2></div>", unsafe_allow_html=True)
             
             st.markdown("---")
             col_chart1, col_chart2 = st.columns(2)
@@ -820,8 +846,8 @@ elif ruolo_utente == "HR (Risorse Umane)":
                 st.subheader("Distribuzione Seniority")
                 df_sen = df['Seniority'].value_counts().reset_index()
                 df_sen.columns = ['Seniority', 'Conteggio']
-                fig1 = px.pie(df_sen, values='Conteggio', names='Seniority', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-                st.plotly_chart(fig1, use_container_width=True)
+                fig1 = px.pie(df_sen, values='Conteggio', names='Seniority', hole=0.4, color_discrete_sequence=px.colors.sequential.Tealgrn)
+                st.plotly_chart(applica_tema_plotly(fig1), use_container_width=True)
             
             with col_chart2:
                 st.subheader("Distribuzione per Ruolo")
@@ -831,11 +857,11 @@ elif ruolo_utente == "HR (Risorse Umane)":
                 df_ruoli = df if area_selezionata == "Tutte le Aree" else df[df['Macro_Area'] == area_selezionata]
                 df_ruoli = df_ruoli['Ruolo'].str.replace('Senior ', '').str.replace('Mid ', '').str.replace('Junior ', '').value_counts().reset_index()
                 df_ruoli.columns = ['Ruolo', 'Conteggio']
-                fig2 = px.bar(df_ruoli, x='Ruolo', y='Conteggio', color='Ruolo')
-                st.plotly_chart(fig2, use_container_width=True)
+                fig2 = px.bar(df_ruoli, x='Ruolo', y='Conteggio', color='Ruolo', color_discrete_sequence=px.colors.sequential.Blues_r)
+                st.plotly_chart(applica_tema_plotly(fig2), use_container_width=True)
 
         elif pagina_hr == "➕ Onboarding Nuovo Assunto":
-            st.title("Assunzione Nuovo Dipendente")
+            st.markdown("<h1 class='gradient-title'>Assunzione Nuovo Dipendente</h1>", unsafe_allow_html=True)
             st.write("Aggiungi una nuova risorsa al Database aziendale. Sarà immediatamente visibile ai Project Manager.")
             
             with st.form("form_onboarding"):
@@ -870,7 +896,7 @@ elif ruolo_utente == "HR (Risorse Umane)":
                         st.error("Per favore compila Nome e Competenze.")
 
         elif pagina_hr == "✏️ Gestione e Promozioni":
-            st.title("Gestione Dipendente e Promozioni")
+            st.markdown("<h1 class='gradient-title'>Gestione Dipendente e Promozioni</h1>", unsafe_allow_html=True)
             st.write("Aggiorna l'anagrafica, promuovi di livello o modifica il costo di una singola risorsa.")
             
             nome_ricerca = st.selectbox("Seleziona Dipendente da modificare:", df['Nome'].tolist())
@@ -915,7 +941,7 @@ elif ruolo_utente == "HR (Risorse Umane)":
                         st.rerun()
 
         elif pagina_hr == "📥 Integrazione Zucchetti":
-            st.title("Sincronizzazione Software Paghe / Zucchetti")
+            st.markdown("<h1 class='gradient-title'>Sincronizzazione Software Paghe / Zucchetti</h1>", unsafe_allow_html=True)
             st.info("Trattandosi di un modulo disaccoppiato, puoi scaricare il template o fare l'upload massivo per aggiornare le anagrafiche dei dipendenti.")
             
             st.subheader("1. Esporta dati attuali (Per Zucchetti)")
@@ -937,13 +963,12 @@ elif ruolo_utente == "HR (Risorse Umane)":
                     st.dataframe(new_df.head(5))
 
         elif pagina_hr == "🗄️ Master Data Dipendenti":
-            st.title("Anagrafica Completa Dipendenti")
+            st.markdown("<h1 class='gradient-title'>Anagrafica Completa Dipendenti</h1>", unsafe_allow_html=True)
             st.write("Vista raw del database aziendale.")
             df_display = df.copy()
             df_display['Progetto_Attuale'] = df_display.apply(estrai_progetto_attuale, axis=1)
             df_display = df_display.drop(columns=['Esperienze', 'Macro_Area'], errors='ignore')
             
-            # --- TABELLA SMART CON CONFIGURAZIONI VISIVE ---
             st.dataframe(
                 df_display,
                 column_config={
