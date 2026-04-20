@@ -203,7 +203,9 @@ df = st.session_state.df_risorse
 if ruolo_utente in ["Project Manager", "HR (Risorse Umane)"]:
     with st.sidebar.expander("⚙️ Impostazioni AI Copilot"):
         api_key = st.text_input("Groq API Key:", value=st.session_state.groq_api_key, type="password")
-        if st.button("Salva Chiave"): st.session_state.groq_api_key, st.success("Salvata!") = api_key, True
+        if st.button("Salva Chiave"):
+            st.session_state.groq_api_key = api_key
+            st.success("Salvata!")
 
 if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
     st.sidebar.markdown("---")
