@@ -453,11 +453,11 @@ elif ruolo_utente == "Project Manager":
                     st.success(f"✅ {r_scelta} allocato con successo!")
 
         # =====================================
-        # PM 4: NUOVA TAB - SCHEDULING TEAM (STILE TEAMS)
+        # PM 4: NUOVA TAB - SCHEDULING TEAM (CALENDARI VISIVI AFFIANCATI)
         # =====================================
         elif pagina_pm == "👥 Pianificazione Team (Scheduling)":
             st.title("Scheduling Assistant Team")
-            st.write("Componi il tuo team e verifica la disponibilità incrociata.")
+            st.write("Componi il tuo team e verifica la disponibilità incrociata attraverso i calendari visivi.")
             
             c_f1, c_f2 = st.columns(2)
             filtro_sen = c_f1.multiselect("Filtra per Seniority:", ["Junior", "Mid", "Senior"], default=["Senior", "Mid", "Junior"])
@@ -465,70 +465,103 @@ elif ruolo_utente == "Project Manager":
             
             team_selezionato = c_f2.multiselect("Seleziona le risorse per il Team:", df_filtered['Nome'].tolist())
             
+            # Inizializzo l'indice del mese per questa specifica Tab
+            if "team_cal_idx" not in st.session_state: 
+                st.session_state.team_cal_idx = 0
+                
             oggi = datetime.today()
-            orizzonte = st.date_input("Orizzonte temporale di analisi (Inizio - Fine):", value=(oggi, oggi + timedelta(days=30)))
+            orizzonte = st.date_input("Orizzonte temporale di analisi (Inizio - Fine):", value=(oggi, oggi + timedelta(days=180)))
             
             if team_selezionato and len(orizzonte) == 2:
                 start_date, end_date = orizzonte
                 st.markdown("---")
                 
-                # Genera la lista esatta dei giorni tra start_date ed end_date
-                date_list = pd.date_range(start=start_date, end=end_date)
+                # Calcola i mesi all'interno dell'orizzonte
+                mesi_presenti = []
+                curr = start_date.replace(day=1)
+                while curr <= end_date:
+                    mesi_presenti.append((curr.year, curr.month))
+                    if curr.month == 12: curr = curr.replace(year=curr.year+1, month=1)
+                    else: curr = curr.replace(month=curr.month+1)
                 
-                # Costruzione della Matrice (Heatmap HTML)
-                html_matrix = """
-                <div style='overflow-x: auto;'>
-                <table style='width: 100%; border-collapse: collapse; text-align: center; font-size: 12px;'>
-                    <thead>
-                        <tr style='background-color: #2E3338; color: white;'>
-                            <th style='padding: 10px; text-align: left; min-width: 150px; border: 1px solid #444;'>Membro Team</th>
-                """
-                # Intestazioni delle colonne con "GG/MM" reale
-                for d in date_list:
-                    html_matrix += f"<th style='padding: 5px; width: 35px; border: 1px solid #444; font-size: 11px;'>{d.strftime('%d/%m')}</th>"
-                html_matrix += "</tr></thead><tbody>"
+                # Resetto l'indice se cambio l'orizzonte
+                if st.session_state.team_cal_idx >= len(mesi_presenti): 
+                    st.session_state.team_cal_idx = 0
                 
-                # Righe per ogni membro
-                for nome in team_selezionato:
-                    r_dati = df[df['Nome'] == nome].iloc[0]
-                    data_libero = datetime.strptime(r_dati['Disponibile_dal'], "%Y-%m-%d").date()
-                    occ_attuale = r_dati['Occupazione_%']
-                    
-                    html_matrix += f"<tr><td style='padding: 10px; text-align: left; border: 1px solid #444;'><b>{nome}</b><br><span style='font-size:10px; color:#888;'>{r_dati['Ruolo']}</span></td>"
-                    
-                    for d in date_list:
-                        current_day = d.date()
+                # UI Navigazione Mese
+                col_p, col_m, col_n = st.columns([1,2,1])
+                if col_p.button("◀ Mese Precedente", key="btn_prev_team"):
+                    if st.session_state.team_cal_idx > 0:
+                        st.session_state.team_cal_idx -= 1
+                        st.rerun()
+                if col_n.button("Mese Successivo ▶", key="btn_next_team"):
+                    if st.session_state.team_cal_idx < len(mesi_presenti) - 1:
+                        st.session_state.team_cal_idx += 1
+                        st.rerun()
                         
-                        # Salta i weekend (visivamente grigi scuro)
-                        if current_day.weekday() >= 5:
-                            bg_color = "#333333" 
-                        else:
-                            # Logica colori Teams
-                            if current_day < data_libero:
-                                if occ_attuale == 100: bg_color = "#00CC96" # Verde (Staffato al 100%, non disponibile)
-                                elif occ_attuale > 0: bg_color = "#FFD700" # Giallo (Parzialmente disponibile)
-                                else: bg_color = "#FF4B4B" # Rosso (Bench, Totalmente disponibile)
-                            else:
-                                bg_color = "#FF4B4B" # Dopo la data di fine progetto è Bench (Rosso)
-
-                        # Mostra il giorno del mese dentro la cella in piccolino per maggior chiarezza visiva
-                        html_matrix += f"<td style='background-color: {bg_color}; border: 1px solid #444; color: rgba(255,255,255,0.3); font-size: 9px;'>{current_day.day}</td>"
-                    html_matrix += "</tr>"
-                    
-                html_matrix += "</tbody></table></div>"
+                anno_corr, mese_corr = mesi_presenti[st.session_state.team_cal_idx]
+                mesi_ita = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
+                nome_mese = mesi_ita[mese_corr]
                 
-                st.markdown(html_matrix, unsafe_allow_html=True)
+                col_m.markdown(f"<h3 style='text-align:center; margin-top:0;'>{nome_mese} {anno_corr}</h3>", unsafe_allow_html=True)
                 
-                # Legenda stile Teams
+                # Legenda Unica Centrale
                 st.markdown("""
-                <br>
-                <div style="display:flex; gap:20px; font-size:12px;">
+                <div style="display:flex; justify-content:center; gap:20px; font-size:12px; margin-bottom: 30px;">
                     <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FF4B4B; margin-right:5px; border-radius:3px;"></div> <b>Disponibile (Bench)</b></div>
-                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FFD700; margin-right:5px; border-radius:3px;"></div> <b>Parzialmente Occupato</b></div>
-                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#00CC96; margin-right:5px; border-radius:3px;"></div> <b>Non Disponibile (100%)</b></div>
-                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#333333; margin-right:5px; border-radius:3px;"></div> Weekend</div>
+                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FFD700; margin-right:5px; border-radius:3px;"></div> <b>Parz. Occupato</b></div>
+                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#00CC96; margin-right:5px; border-radius:3px;"></div> <b>Non Disponibile</b></div>
+                    <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#333333; margin-right:5px; border-radius:3px;"></div> Weekend / Fuori Orizz.</div>
                 </div>
                 """, unsafe_allow_html=True)
+
+                cal = calendar.Calendar(firstweekday=0) # Lunedi=0
+                month_days = cal.monthdatescalendar(anno_corr, mese_corr)
+                giorni_sett = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
+
+                # Stampa i calendari in griglia (Max 3 calendari per riga per mantenere la grafica pulita)
+                cols_per_row = 3
+                for i in range(0, len(team_selezionato), cols_per_row):
+                    cols = st.columns(cols_per_row)
+                    for j, nome in enumerate(team_selezionato[i:i+cols_per_row]):
+                        with cols[j]:
+                            # Nome del Consulente sopra il suo Calendario
+                            st.markdown(f"<h5 style='text-align:center; color:#1E88E5; margin-bottom:10px;'>{nome}</h5>", unsafe_allow_html=True)
+                            
+                            r_dati = df[df['Nome'] == nome].iloc[0]
+                            data_libero = datetime.strptime(r_dati['Disponibile_dal'], "%Y-%m-%d").date()
+                            occ_attuale = r_dati['Occupazione_%']
+                            
+                            html_cal = "<div style='display:grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 30px;'>"
+                            
+                            # Header Giorni (Lun, Mar...)
+                            for g in giorni_sett:
+                                html_cal += f"<div style='text-align:center; font-size:11px; font-weight:bold; color:#888;'>{g}</div>"
+                                
+                            # Generazione Caselle
+                            for week in month_days:
+                                for day in week:
+                                    if day.month != mese_corr:
+                                        # Casella vuota (nasconde i giorni dei mesi adiacenti)
+                                        html_cal += "<div style='visibility:hidden;'></div>"
+                                    else:
+                                        occ = occ_attuale if day < data_libero else 0
+                                        # Calcolo Colore
+                                        if day < start_date or day > end_date:
+                                            bg_color = "#333333" # Fuori Orizzonte Scelto
+                                        elif day.weekday() >= 5:
+                                            bg_color = "#333333" # Weekend
+                                        elif occ == 0:
+                                            bg_color = "#FF4B4B" # Rosso / Bench
+                                        elif occ < 100:
+                                            bg_color = "#FFD700" # Giallo / Parziale
+                                        else:
+                                            bg_color = "#00CC96" # Verde / Staffato
+                                            
+                                        html_cal += f"<div style='background-color:{bg_color}; height:35px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:bold; color:#FFF;'>{day.day}</div>"
+                            
+                            html_cal += "</div>"
+                            st.markdown(html_cal, unsafe_allow_html=True)
 
         # =====================================
         # PM 5: ANALISI SINGOLI PROFILI (CALENDARIO MESE)
