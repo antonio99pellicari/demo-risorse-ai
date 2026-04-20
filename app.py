@@ -448,7 +448,7 @@ elif ruolo_utente == "Project Manager":
                              color='Categoria', color_discrete_map={"Mancati Ricavi (Bench)": "#FF4B4B", "Ricavi Attivi (Staffati)": "#00CC96"})
             st.plotly_chart(fig_fin, use_container_width=True)
 
-        elif pagina_pm == "🚀 Scoping & Staffing AI":
+                elif pagina_pm == "🚀 Scoping & Staffing AI":
             st.title("🤖 Scoping Dinamico & Scenario Analysis")
             
             st.info("""
@@ -458,23 +458,24 @@ elif ruolo_utente == "Project Manager":
             - **Futuro:** Guardrail, approval workflow AI, audit log e feedback loop.
             """)
             
-            # Bottone di comodità per le demo
-            if st.button("📝 Carica Brief di Esempio (per Demo)"):
-                st.session_state.temp_brief = "Il cliente ha richiesto una nuova piattaforma web. Il frontend sarà in React e TypeScript. Per il backend necessitiamo di Python e database SQL. L'infrastruttura andrà portata su AWS."
+            # Funzione Callback corretta per Streamlit
+            def imposta_brief_demo():
+                st.session_state.testo_brief = "Il cliente ha richiesto una nuova piattaforma web. Il frontend sarà in React e TypeScript. Per il backend necessitiamo di Python e database SQL. L'infrastruttura andrà portata su AWS."
             
-            default_brief = st.session_state.get("temp_brief", "")
+            st.button("📝 Carica Brief di Esempio (per Demo)", on_click=imposta_brief_demo)
             
-            testo_da_analizzare = st.text_area("Requisiti di progetto (Inserisci il brief da valutare col Motore Deterministico):", value=default_brief, height=100)
-
-            # Rimuove il brief temporaneo dopo averlo mostrato per evitare che resti bloccato
-            if "temp_brief" in st.session_state:
-                del st.session_state.temp_brief
+            # Inizializza la chiave di sessione se non esiste
+            if "testo_brief" not in st.session_state:
+                st.session_state.testo_brief = ""
+                
+            testo_da_analizzare = st.text_area("Requisiti di progetto (Inserisci il brief da valutare col Motore Deterministico):", key="testo_brief", height=100)
 
             if st.button("Genera WBS e Team", type="primary"):
                 fasi, skill_richieste = analizza_testo(testo_da_analizzare)
                 
                 if not fasi:
                     st.warning("⚠️ Il Motore Deterministico non ha rilevato tecnologie specifiche. Prova a inserire termini tecnici (es. React, Python, AWS, Node, SQL) o usa il 'Brief di Esempio'.")
+                    # Puliamo i vecchi dati se fallisce
                     if "wbs_data" in st.session_state: del st.session_state.wbs_data
                     if "team_data" in st.session_state: del st.session_state.team_data
                 else:
