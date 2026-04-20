@@ -731,11 +731,11 @@ if ruolo_utente == "Project Management":
 # ==========================================
 elif ruolo_utente == "Consulente IT":
     if not st.session_state.it_logged_in:
-        st.markdown("<h1 class='gradient-title'>Gateway di Rete Personale</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='gradient-title'>Gateway di Autenticazione Personale</h1>", unsafe_allow_html=True)
         with st.form("login_it_form"):
             utente_selezionato = st.selectbox("Selettore Identità", df['Nome'].tolist())
-            password_it = st.text_input("Codice Autorizzazione", type="password", help="Codice Base: dev123")
-            if st.form_submit_button("Esegui Handshake"):
+            password_it = st.text_input("Codice Sicurezza", type="password", help="Codice Base: dev123")
+            if st.form_submit_button("Accesso di Rete"):
                 if password_it == "dev123":
                     st.session_state.it_logged_in = True
                     st.session_state.current_it_user = utente_selezionato
@@ -846,7 +846,7 @@ elif ruolo_utente == "Human Resources":
         # ----------------------------------------
         # SOTTO-VISTA: Onboarding Nuovo Assunto
         # ----------------------------------------
-        elif pagina_pm == "Processo Onboarding":
+        elif pagina_hr == "Processo Onboarding":
             st.markdown("<h1 class='gradient-title'>Creazione Nuova Anagrafica</h1>", unsafe_allow_html=True)
             st.write("La transazione creerà un record istantaneo disponibile ai Project Manager.")
             
