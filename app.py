@@ -150,7 +150,7 @@ def fallback_simulatore_chatbot(prompt, df):
     return None, "Comando non riconosciuto (Modalità Simulator)."
 
 def parse_chatbot_intent_llm(prompt, df, api_key):
-    """Vero LLM tramite Groq per il Copilot Chatbot"""
+    """Vero LLM tramite Groq per il Copilot Chatbot (Versione Antiproiettile)"""
     if not api_key:
         return fallback_simulatore_chatbot(prompt, df)
         
@@ -158,50 +158,67 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     
     system_prompt = f"""
     Sei l'assistente virtuale di un sistema HR/Project Management.
-    Devi estrarre l'intento dell'utente e restituire ESCLUSIVAMENTE un JSON valido.
+    Rispondi SEMPRE E SOLO con un oggetto JSON valido. Non aggiungere altre frasi.
     Dipendenti a sistema: {lista_nomi}
     
-    Se l'utente chiede di ALLOCARE/ASSEGNARE:
-    {{
-      "azione": "alloca",
-      "nome": "Nome e Cognome ESATTO",
-      "percentuale": numero (es. 50, default 100),
-      "cliente": "Nome cliente",
-      "messaggio_riepilogo": "Vado ad allocare [Nome] al [X]% sul progetto [Cliente]."
-    }}
+    REGOLE:
+    1. Se l'utente chiede di ALLOCARE/ASSEGNARE:
+    {{"azione": "alloca", "nome": "Nome e Cognome", "percentuale": 50, "cliente": "Nome cliente", "messaggio_riepilogo": "Vado ad allocare..."}}
     
-    Se l'utente chiede di PROMUOVERE:
-    {{
-      "azione": "promuovi",
-      "nome": "Nome e Cognome ESATTO",
-      "nuova_seniority": "Junior, Mid o Senior",
-      "messaggio_riepilogo": "Vado a promuovere [Nome] al livello [Seniority]."
-    }}
+    2. Se l'utente chiede di PROMUOVERE:
+    {{"azione": "promuovi", "nome": "Nome e Cognome", "nuova_seniority": "Junior/Mid/Senior", "messaggio_riepilogo": "Vado a promuovere..."}}
     
-    Se c'è errore o richiesta fuori contesto: {{"azione": "errore", "messaggio_riepilogo": "Spiegazione..."}}
+    3. Se l'utente ti saluta (es. "ciao come stai") o fa richieste non pertinenti:
+    {{"azione": "errore", "messaggio_riepilogo": "Ciao! Sono il tuo AI Copilot. Posso aiutarti ad allocare risorse sui progetti o a promuovere i consulenti. Prova a chiedermi: 'Alloca Marco Rossi su TIM al 50%'."}}
     """
     
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {
-        "model": "llama3-8b-8192",
+        "model": "llama-3.1-8b-instant", # Modello più recente e stabile
         "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
-        "response_format": {"type": "json_object"},
         "temperature": 0.1
     }
     
     try:
         response = requests.post(url, headers=headers, json=payload)
-        if response.status_code != 200: return None, f"⚠️ Errore API Groq: {response.status_code}"
-        dati = json.loads(response.json()["choices"][0]["message"]["content"])
         
-        if dati.get("azione") == "errore": return None, dati.get("messaggio_riepilogo")
+        # Se c'è ancora un errore, stampiamo l'errore VERO di Groq invece del solo numero
+        if response.status_code != 200: 
+            return None, f"⚠️ Errore API Groq: {response.text}"
+            
+        testo_risposta = response.json()["choices"][0]["message"]["content"]
+        
+        # Estrazione sicura del JSON per evitare crash se il modello aggiunge testo
+        try:
+            match = re.search(r'\{.*\}', testo_risposta, re.DOTALL)
+            dati = json.loads(match.group(0)) if match else json.loads(testo_risposta)
+        except:
+            return None, f"⚠️ Il modello non ha restituito JSON valido. Risposta ricevuta: {testo_risposta}"
+        
+        if dati.get("azione") == "errore": 
+            return None, dati.get("messaggio_riepilogo")
+            
         if dati.get("azione") == "alloca":
-            return {"type": "alloca", "nome": dati["nome"], "perc": dati["percentuale"], "cliente": dati["cliente"], "desc": dati["messaggio_riepilogo"]}, None
+            return {
+                "type": "alloca", 
+                "nome": dati.get("nome"), 
+                "perc": dati.get("percentuale", 100), 
+                "cliente": dati.get("cliente", "N/D"), 
+                "desc": dati.get("messaggio_riepilogo")
+            }, None
+            
         if dati.get("azione") == "promuovi":
-            return {"type": "promuovi", "nome": dati["nome"], "nuova_sen": dati["nuova_seniority"], "desc": dati["messaggio_riepilogo"]}, None
+            return {
+                "type": "promuovi", 
+                "nome": dati.get("nome"), 
+                "nuova_sen": dati.get("nuova_seniority"), 
+                "desc": dati.get("messaggio_riepilogo")
+            }, None
+            
+        return None, "Non ho capito la richiesta. Riprova con parole diverse."
     except Exception as e:
-        return None, f"⚠️ Errore AI: {str(e)}"
+        return None, f"⚠️ Errore di connessione AI: {str(e)}"
 
 def esegui_azione_chatbot(dati_finali):
     df = st.session_state.df_risorse
