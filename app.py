@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import re
 import plotly.express as px
 import calendar
+import requests
+import json
 
 # ==========================================
 # 1. INIZIALIZZAZIONE DATI E SESSIONI
@@ -85,10 +87,14 @@ if "pending_allocations" not in st.session_state: st.session_state.pending_alloc
 if "cal_month_idx" not in st.session_state: st.session_state.cal_month_idx = 0
 if "team_cal_idx" not in st.session_state: st.session_state.team_cal_idx = 0
 
-# Variabili Chatbot
+# Variabili Chatbot e API Key Groq preimpostata
 if "chat_msgs" not in st.session_state:
     st.session_state.chat_msgs = [{"role": "assistant", "content": "Ciao! Sono il tuo Copilot AI. Scrivimi un comando, ad esempio:\n- *Alloca Marco Rossi su TIM al 50%*\n- *Promuovi Giulia Bianchi a Senior*"}]
 if "bot_action" not in st.session_state: st.session_state.bot_action = None
+
+# CHIAVE GROQ INSERITA DIRETTAMENTE
+if "groq_api_key" not in st.session_state: 
+    st.session_state.groq_api_key = "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"
 
 if "pm_logged_in" not in st.session_state: st.session_state.pm_logged_in = False
 if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
@@ -96,9 +102,10 @@ if "hr_logged_in" not in st.session_state: st.session_state.hr_logged_in = False
 if "current_it_user" not in st.session_state: st.session_state.current_it_user = None
 
 # ==========================================
-# 2. MOTORE SMART E COPILOT DEMO
+# 2. MOTORI AI E COPILOT
 # ==========================================
 def analizza_testo(testo):
+    """Motore Deterministico (Rules Engine MVP) per lo Scoping"""
     testo_lower = testo.lower()
     competenze_trovate = []
     regole = {
@@ -120,37 +127,81 @@ def analizza_testo(testo):
         
     return fasi, competenze_trovate
 
-def parse_chatbot_intent(prompt, df):
+def fallback_simulatore_chatbot(prompt, df):
+    """Simulatore Regex se non c'è l'API Key Groq"""
     prompt_l = prompt.lower()
     nome_trovato = None
-    
     for nome in df['Nome']:
         if nome.lower() in prompt_l:
             nome_trovato = nome
             break
-            
-    if not nome_trovato:
-        return None, "Non ho trovato il nome del dipendente. Assicurati di scriverlo correttamente (es. Marco Rossi)."
-        
+    if not nome_trovato: return None, "Non ho trovato il dipendente. (Modalità Simulator)"
     if "alloca" in prompt_l or "assegna" in prompt_l:
         perc_match = re.search(r'(\d+)%', prompt_l)
         perc = int(perc_match.group(1)) if perc_match else 100
-        
         cliente = "Nuovo Progetto"
-        prompt_pulito = prompt_l.replace("progetto ", "").replace("cliente ", "")
-        match_cliente = re.search(r'(?:su|sul|sulla)\s+([a-zA-Z0-9_\-]+)', prompt_pulito)
-        if match_cliente: 
-            cliente = match_cliente.group(1).capitalize()
-            
-        desc = f"**{nome_trovato}** pronto per l'allocazione. Controlla e scegli il periodo:"
+        match_cliente = re.search(r'(?:su|sul|sulla)\s+([a-zA-Z0-9_\-]+)', prompt_l.replace("progetto ", ""))
+        if match_cliente: cliente = match_cliente.group(1).capitalize()
+        desc = f"**{nome_trovato}** pronto per l'allocazione (Simulazione)."
         return {"type": "alloca", "nome": nome_trovato, "perc": perc, "cliente": cliente, "desc": desc}, None
+    if "promuovi" in prompt_l:
+        sen = "Senior" if "senior" in prompt_l else "Mid" if "mid" in prompt_l else "Junior"
+        return {"type": "promuovi", "nome": nome_trovato, "nuova_sen": sen, "desc": f"Promuovo **{nome_trovato}** a **{sen}**."}, None
+    return None, "Comando non riconosciuto (Modalità Simulator)."
 
-    if "promuovi" in prompt_l or "livello" in prompt_l:
-        nuova_sen = "Senior" if "senior" in prompt_l else "Mid" if "mid" in prompt_l else "Junior"
-        desc = f"Sto per promuovere **{nome_trovato}** a **{nuova_sen}**."
-        return {"type": "promuovi", "nome": nome_trovato, "nuova_sen": nuova_sen, "desc": desc}, None
+def parse_chatbot_intent_llm(prompt, df, api_key):
+    """Vero LLM tramite Groq per il Copilot Chatbot"""
+    if not api_key:
+        return fallback_simulatore_chatbot(prompt, df)
         
-    return None, "Non ho capito l'operazione. Usa: 'Alloca [Nome] su [Cliente] al [X]%' oppure 'Promuovi [Nome] a [Livello]'."
+    lista_nomi = ", ".join(df['Nome'].tolist())
+    
+    system_prompt = f"""
+    Sei l'assistente virtuale di un sistema HR/Project Management.
+    Devi estrarre l'intento dell'utente e restituire ESCLUSIVAMENTE un JSON valido.
+    Dipendenti a sistema: {lista_nomi}
+    
+    Se l'utente chiede di ALLOCARE/ASSEGNARE:
+    {{
+      "azione": "alloca",
+      "nome": "Nome e Cognome ESATTO",
+      "percentuale": numero (es. 50, default 100),
+      "cliente": "Nome cliente",
+      "messaggio_riepilogo": "Vado ad allocare [Nome] al [X]% sul progetto [Cliente]."
+    }}
+    
+    Se l'utente chiede di PROMUOVERE:
+    {{
+      "azione": "promuovi",
+      "nome": "Nome e Cognome ESATTO",
+      "nuova_seniority": "Junior, Mid o Senior",
+      "messaggio_riepilogo": "Vado a promuovere [Nome] al livello [Seniority]."
+    }}
+    
+    Se c'è errore o richiesta fuori contesto: {{"azione": "errore", "messaggio_riepilogo": "Spiegazione..."}}
+    """
+    
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {
+        "model": "llama3-8b-8192",
+        "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.1
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code != 200: return None, f"⚠️ Errore API Groq: {response.status_code}"
+        dati = json.loads(response.json()["choices"][0]["message"]["content"])
+        
+        if dati.get("azione") == "errore": return None, dati.get("messaggio_riepilogo")
+        if dati.get("azione") == "alloca":
+            return {"type": "alloca", "nome": dati["nome"], "perc": dati["percentuale"], "cliente": dati["cliente"], "desc": dati["messaggio_riepilogo"]}, None
+        if dati.get("azione") == "promuovi":
+            return {"type": "promuovi", "nome": dati["nome"], "nuova_sen": dati["nuova_seniority"], "desc": dati["messaggio_riepilogo"]}, None
+    except Exception as e:
+        return None, f"⚠️ Errore AI: {str(e)}"
 
 def esegui_azione_chatbot(dati_finali):
     df = st.session_state.df_risorse
@@ -158,12 +209,10 @@ def esegui_azione_chatbot(dati_finali):
     
     if dati_finali['type'] == 'alloca':
         df.at[idx, 'Occupazione_%'] = dati_finali['perc']
-        
         if 'end_date' in dati_finali and dati_finali['end_date']:
             df.at[idx, 'Disponibile_dal'] = dati_finali['end_date'].strftime("%Y-%m-%d")
         else:
             df.at[idx, 'Disponibile_dal'] = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
-            
         df.at[idx, 'Esperienze'].append({"Cliente": dati_finali['cliente'], "Progetto": "Assegnazione da AI Copilot", "Tecnologie_Usate": []})
         msg = f"✅ Successo: **{dati_finali['nome']}** assegnato a **{dati_finali['cliente']}** al {dati_finali['perc']}%."
         
@@ -171,7 +220,7 @@ def esegui_azione_chatbot(dati_finali):
         ruolo_puro = df.at[idx, 'Ruolo'].replace('Senior ', '').replace('Mid ', '').replace('Junior ', '')
         df.at[idx, 'Seniority'] = dati_finali['nuova_sen']
         df.at[idx, 'Ruolo'] = f"{dati_finali['nuova_sen']} {ruolo_puro}"
-        msg = f"✅ Successo: **{dati_finali['nome']}** è stato promosso a **{dati_finali['nuova_sen']}**."
+        msg = f"✅ Successo: **{dati_finali['nome']}** promosso a **{dati_finali['nuova_sen']}**."
 
     st.session_state.bot_action = None
     st.session_state.chat_msgs.append({"role": "assistant", "content": msg})
@@ -191,13 +240,27 @@ if ruolo_utente != "HR (Risorse Umane)": st.session_state.hr_logged_in = False
 df = st.session_state.df_risorse
 
 # ---------------------------------------------------------
+# IMPOSTAZIONI VERO LLM (GROQ) PER IL CHATBOT
+# ---------------------------------------------------------
+if ruolo_utente in ["Project Manager", "HR (Risorse Umane)"]:
+    with st.sidebar.expander("⚙️ Impostazioni AI Copilot (Groq)"):
+        st.write("Attiva il VERO LLM (Llama 3) per il Chatbot.")
+        api_key = st.text_input("Groq API Key (gsk_...):", value=st.session_state.groq_api_key, type="password")
+        if st.button("Salva Chiave"):
+            st.session_state.groq_api_key = api_key
+            st.success("API Key salvata! Chatbot potenziato.")
+
+# ---------------------------------------------------------
 # CHATBOT WIDGET CON POPUP E FORM DI CONFERMA
 # ---------------------------------------------------------
 if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
     st.sidebar.markdown("---")
     with st.sidebar.popover("💬 Assistente AI (Copilot)", use_container_width=True):
         st.markdown("**Copilot Aziendale**")
-        st.caption("🟢 *Modello: AI Resource Engine (Attivo)*")
+        if st.session_state.groq_api_key and st.session_state.groq_api_key.startswith("gsk_"):
+            st.caption("🟢 *Motore: Llama-3 (Groq LLM)*")
+        else:
+            st.caption("🟠 *Motore: Rules Engine (Simulatore)*")
         
         for msg in st.session_state.chat_msgs:
             with st.chat_message(msg["role"]):
@@ -244,13 +307,13 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
         if prompt := st.chat_input("Chiedi all'AI (es. Alloca Luca Neri su TIM al 50%)..."):
             st.session_state.chat_msgs.append({"role": "user", "content": prompt})
             with st.spinner("Elaborazione..."):
-                action_dict, error_msg = parse_chatbot_intent(prompt, st.session_state.df_risorse)
+                action_dict, error_msg = parse_chatbot_intent_llm(prompt, st.session_state.df_risorse, st.session_state.groq_api_key)
             
             if error_msg:
                 st.session_state.chat_msgs.append({"role": "assistant", "content": error_msg})
             else:
                 st.session_state.bot_action = action_dict
-                st.session_state.chat_msgs.append({"role": "assistant", "content": "Ho preparato la richiesta. Controlla e conferma i dettagli:"})
+                st.session_state.chat_msgs.append({"role": "assistant", "content": "Ho preparato la richiesta. Controlla e conferma:"})
             st.rerun()
 
 # ==========================================
@@ -373,9 +436,15 @@ elif ruolo_utente == "Project Manager":
 
         elif pagina_pm == "🚀 Scoping & Staffing AI":
             st.title("🤖 Scoping Dinamico & Scenario Analysis")
-            st.info("💡 Incolla il testo del progetto. Puoi modificare giorni o margine in percentuale direttamente nella griglia.")
             
-            testo_da_analizzare = st.text_area("Requisiti di progetto:", height=100)
+            st.info("""
+            **AI-enabled Staffing Copilot Roadmap**
+            - **Oggi (MVP Operativo):** Motore a Regole Deterministiche (Rules Engine) per Scenario Analysis & Allocation Cockpit.
+            - **Domani (In Roadmap):** Integrazione full LLM per scoping semantico profondo, skill extraction automatica e reasoning sui carichi di lavoro.
+            - **Futuro:** Guardrail, approval workflow AI, audit log e feedback loop.
+            """)
+            
+            testo_da_analizzare = st.text_area("Requisiti di progetto (Inserisci il brief da valutare col Motore Deterministico):", height=100)
 
             if st.button("Genera WBS e Team", type="primary") or "wbs_data" in st.session_state:
                 if testo_da_analizzare and "wbs_data" not in st.session_state:
@@ -409,7 +478,7 @@ elif ruolo_utente == "Project Manager":
                             costo_totale_progetto += costo_fase
                             proposta_commerciale += costo_fase * (1 + (membro.iloc[0]['Margine_%'] / 100))
                     
-                    st.info("### 💰 Breakdown Finanziario (Tempo Reale)")
+                    st.success("### 💰 Breakdown Finanziario (Tempo Reale)")
                     c_fin1, c_fin2, c_fin3 = st.columns(3)
                     c_fin1.metric("Costo Vivo Progetto", f"€ {costo_totale_progetto:,.2f}")
                     c_fin2.metric("Proposta Commerciale", f"€ {proposta_commerciale:,.2f}")
@@ -657,9 +726,6 @@ elif ruolo_utente == "HR (Risorse Umane)":
             st.session_state.hr_logged_in = False
             st.rerun()
 
-        # =====================================
-        # HR 1: DASHBOARD
-        # =====================================
         if pagina_hr == "🏠 Dashboard HR":
             st.title("Dashboard Risorse Umane")
             st.info("Panoramica sulla composizione della forza lavoro aziendale.")
@@ -689,9 +755,6 @@ elif ruolo_utente == "HR (Risorse Umane)":
                 fig2 = px.bar(df_ruoli, x='Ruolo', y='Conteggio', color='Ruolo')
                 st.plotly_chart(fig2, use_container_width=True)
 
-        # =====================================
-        # HR 2: ONBOARDING NUOVO ASSUNTO
-        # =====================================
         elif pagina_hr == "➕ Onboarding Nuovo Assunto":
             st.title("Assunzione Nuovo Dipendente")
             st.write("Aggiungi una nuova risorsa al Database aziendale. Sarà immediatamente visibile ai Project Manager.")
@@ -727,9 +790,6 @@ elif ruolo_utente == "HR (Risorse Umane)":
                     else:
                         st.error("Per favore compila Nome e Competenze.")
 
-        # =====================================
-        # HR 3: GESTIONE E PROMOZIONI
-        # =====================================
         elif pagina_hr == "✏️ Gestione e Promozioni":
             st.title("Gestione Dipendente e Promozioni")
             st.write("Aggiorna l'anagrafica, promuovi di livello o modifica il costo di una singola risorsa.")
@@ -740,7 +800,7 @@ elif ruolo_utente == "HR (Risorse Umane)":
                 dati_attuali = df.iloc[idx]
                 prog_att = estrai_progetto_attuale(dati_attuali)
                 
-                st.info(f"💡 Attualmente: **{prog_att}** (Occupato al {dati_attuali['Occupazione_%']}%)")
+                st.info(f"💡 Attualmente su: **{prog_att}** (Occupato al {dati_attuali['Occupazione_%']}%)")
                 
                 with st.form("form_modifica_dipendente"):
                     st.subheader(f"Modifica Scheda: {dati_attuali['Nome']}")
@@ -775,9 +835,6 @@ elif ruolo_utente == "HR (Risorse Umane)":
                         st.success(f"I dati di {nuovo_nome} sono stati aggiornati con successo nel Master Data!")
                         st.rerun()
 
-        # =====================================
-        # HR 4: INTEGRAZIONE ZUCCHETTI
-        # =====================================
         elif pagina_hr == "📥 Integrazione Zucchetti":
             st.title("Sincronizzazione Software Paghe / Zucchetti")
             st.info("Trattandosi di un modulo disaccoppiato, puoi scaricare il template o fare l'upload massivo per aggiornare le anagrafiche dei dipendenti.")
@@ -800,9 +857,6 @@ elif ruolo_utente == "HR (Risorse Umane)":
                     st.success("File letto correttamente! (In produzione andrebbe a sovrascrivere o fare un merge con il DB)")
                     st.dataframe(new_df.head(5))
 
-        # =====================================
-        # HR 5: MASTER DATA
-        # =====================================
         elif pagina_hr == "🗄️ Master Data Dipendenti":
             st.title("Anagrafica Completa Dipendenti")
             st.write("Vista raw del database aziendale.")
