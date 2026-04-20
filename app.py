@@ -76,6 +76,7 @@ if "df_risorse" not in st.session_state: st.session_state.df_risorse = genera_da
 if "pending_approvals" not in st.session_state: st.session_state.pending_approvals = []
 if "pending_allocations" not in st.session_state: st.session_state.pending_allocations = []
 if "cal_month_idx" not in st.session_state: st.session_state.cal_month_idx = 0
+if "team_cal_idx" not in st.session_state: st.session_state.team_cal_idx = 0
 
 # Variabili Chatbot
 if "chat_msgs" not in st.session_state:
@@ -130,7 +131,6 @@ def parse_chatbot_intent(prompt, df):
         perc = int(perc_match.group(1)) if perc_match else 100
         
         cliente = "Nuovo Progetto"
-        # Regex migliorata: prende la parola che viene dopo "su " o "sul " ignorando "progetto"
         prompt_pulito = prompt_l.replace("progetto ", "").replace("cliente ", "")
         match_cliente = re.search(r'(?:su|sul|sulla)\s+([a-zA-Z0-9_\-]+)', prompt_pulito)
         if match_cliente: 
@@ -153,7 +153,6 @@ def esegui_azione_chatbot(dati_finali):
     if dati_finali['type'] == 'alloca':
         df.at[idx, 'Occupazione_%'] = dati_finali['perc']
         
-        # Se è stata passata una data dal widget, usala, altrimenti usa default 30 gg
         if 'end_date' in dati_finali and dati_finali['end_date']:
             df.at[idx, 'Disponibile_dal'] = dati_finali['end_date'].strftime("%Y-%m-%d")
         else:
@@ -198,12 +197,10 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
             with st.chat_message(msg["role"]):
                 st.write(msg["content"])
         
-        # Se c'è un'azione pendente, mostra i dettagli modificabili
         if st.session_state.bot_action:
             act = st.session_state.bot_action
             st.info(act['desc'])
             
-            # Form interattivo dentro il bot per validare i dati prima dell'esecuzione
             if act['type'] == 'alloca':
                 with st.form("form_bot_conferma"):
                     c1, c2 = st.columns(2)
@@ -238,7 +235,6 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
                     st.session_state.chat_msgs.append({"role": "assistant", "content": "Operazione annullata."})
                     st.rerun()
 
-        # Input testuale della chat
         if prompt := st.chat_input("Chiedi all'AI (es. Alloca Luca Neri su TIM al 50%)..."):
             st.session_state.chat_msgs.append({"role": "user", "content": prompt})
             with st.spinner("Elaborazione..."):
@@ -329,7 +325,7 @@ elif ruolo_utente == "Project Manager":
             "🏠 Homepage & Alert", 
             "🚀 Scoping & Staffing AI",
             tab_allocazioni,
-            "👥 Pianificazione Team (Scheduling)",  # <--- NUOVA TAB TEAM
+            "👥 Pianificazione Team (Scheduling)",
             "👤 Analisi Profili", 
             "🗄️ Master Data (Database)"
         ])
@@ -338,9 +334,6 @@ elif ruolo_utente == "Project Manager":
             st.session_state.pm_logged_in = False
             st.rerun()
 
-        # =====================================
-        # PM 1: HOMEPAGE
-        # =====================================
         if pagina_pm == "🏠 Homepage & Alert":
             st.title("Centro di Controllo Manageriale")
             if num_req_alloc > 0:
@@ -360,10 +353,17 @@ elif ruolo_utente == "Project Manager":
             c2.metric("Risorse Staffate", occupate)
             c3.metric("Mancati Incassi Bench", f"€ {mancati_incassi_gg:,.2f}")
             c4.metric("Revenue Attesa", f"€ {revenue_attiva_gg:,.2f}")
+            
+            st.markdown("---")
+            st.subheader("📊 Bilancio Portafoglio: Ricavi Attivi vs Mancati Ricavi")
+            df_fin = pd.DataFrame({
+                "Categoria": ["Mancati Ricavi (Bench)", "Ricavi Attivi (Staffati)"],
+                "Valore Giornaliero": [mancati_incassi_gg, revenue_attiva_gg]
+            })
+            fig_fin = px.pie(df_fin, values='Valore Giornaliero', names='Categoria', hole=0.3,
+                             color='Categoria', color_discrete_map={"Mancati Ricavi (Bench)": "#FF4B4B", "Ricavi Attivi (Staffati)": "#00CC96"})
+            st.plotly_chart(fig_fin, use_container_width=True)
 
-        # =====================================
-        # PM 2: SCOPING & STAFFING AI
-        # =====================================
         elif pagina_pm == "🚀 Scoping & Staffing AI":
             st.title("🤖 Scoping Dinamico & Scenario Analysis")
             st.info("💡 Incolla il testo del progetto. Puoi modificare giorni o margine in percentuale direttamente nella griglia.")
@@ -408,9 +408,6 @@ elif ruolo_utente == "Project Manager":
                     c_fin2.metric("Proposta Commerciale", f"€ {proposta_commerciale:,.2f}")
                     c_fin3.metric("Margine Netto Finale", f"€ {proposta_commerciale - costo_totale_progetto:,.2f}")
 
-        # =====================================
-        # PM 3: PIANIFICAZIONE & ALLOCAZIONI
-        # =====================================
         elif pagina_pm == tab_allocazioni:
             st.title("Gestione Agende e Allocazioni")
             
@@ -452,9 +449,6 @@ elif ruolo_utente == "Project Manager":
                     st.session_state.df_risorse.at[idx, 'Esperienze'].append({"Cliente": cliente_input, "Progetto": progetto_input, "Tecnologie_Usate": []})
                     st.success(f"✅ {r_scelta} allocato con successo!")
 
-        # =====================================
-        # PM 4: NUOVA TAB - SCHEDULING TEAM (CALENDARI VISIVI AFFIANCATI)
-        # =====================================
         elif pagina_pm == "👥 Pianificazione Team (Scheduling)":
             st.title("Scheduling Assistant Team")
             st.write("Componi il tuo team e verifica la disponibilità incrociata attraverso i calendari visivi.")
@@ -465,7 +459,6 @@ elif ruolo_utente == "Project Manager":
             
             team_selezionato = c_f2.multiselect("Seleziona le risorse per il Team:", df_filtered['Nome'].tolist())
             
-            # Inizializzo l'indice del mese per questa specifica Tab
             if "team_cal_idx" not in st.session_state: 
                 st.session_state.team_cal_idx = 0
                 
@@ -476,7 +469,6 @@ elif ruolo_utente == "Project Manager":
                 start_date, end_date = orizzonte
                 st.markdown("---")
                 
-                # Calcola i mesi all'interno dell'orizzonte
                 mesi_presenti = []
                 curr = start_date.replace(day=1)
                 while curr <= end_date:
@@ -484,11 +476,9 @@ elif ruolo_utente == "Project Manager":
                     if curr.month == 12: curr = curr.replace(year=curr.year+1, month=1)
                     else: curr = curr.replace(month=curr.month+1)
                 
-                # Resetto l'indice se cambio l'orizzonte
                 if st.session_state.team_cal_idx >= len(mesi_presenti): 
                     st.session_state.team_cal_idx = 0
                 
-                # UI Navigazione Mese
                 col_p, col_m, col_n = st.columns([1,2,1])
                 if col_p.button("◀ Mese Precedente", key="btn_prev_team"):
                     if st.session_state.team_cal_idx > 0:
@@ -505,7 +495,6 @@ elif ruolo_utente == "Project Manager":
                 
                 col_m.markdown(f"<h3 style='text-align:center; margin-top:0;'>{nome_mese} {anno_corr}</h3>", unsafe_allow_html=True)
                 
-                # Legenda Unica Centrale
                 st.markdown("""
                 <div style="display:flex; justify-content:center; gap:20px; font-size:12px; margin-bottom: 30px;">
                     <div style="display:flex; align-items:center;"><div style="width:15px; height:15px; background:#FF4B4B; margin-right:5px; border-radius:3px;"></div> <b>Disponibile (Bench)</b></div>
@@ -515,17 +504,15 @@ elif ruolo_utente == "Project Manager":
                 </div>
                 """, unsafe_allow_html=True)
 
-                cal = calendar.Calendar(firstweekday=0) # Lunedi=0
+                cal = calendar.Calendar(firstweekday=0)
                 month_days = cal.monthdatescalendar(anno_corr, mese_corr)
                 giorni_sett = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
 
-                # Stampa i calendari in griglia (Max 3 calendari per riga per mantenere la grafica pulita)
                 cols_per_row = 3
                 for i in range(0, len(team_selezionato), cols_per_row):
                     cols = st.columns(cols_per_row)
                     for j, nome in enumerate(team_selezionato[i:i+cols_per_row]):
                         with cols[j]:
-                            # Nome del Consulente sopra il suo Calendario
                             st.markdown(f"<h5 style='text-align:center; color:#1E88E5; margin-bottom:10px;'>{nome}</h5>", unsafe_allow_html=True)
                             
                             r_dati = df[df['Nome'] == nome].iloc[0]
@@ -534,38 +521,26 @@ elif ruolo_utente == "Project Manager":
                             
                             html_cal = "<div style='display:grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 30px;'>"
                             
-                            # Header Giorni (Lun, Mar...)
                             for g in giorni_sett:
                                 html_cal += f"<div style='text-align:center; font-size:11px; font-weight:bold; color:#888;'>{g}</div>"
                                 
-                            # Generazione Caselle
                             for week in month_days:
                                 for day in week:
                                     if day.month != mese_corr:
-                                        # Casella vuota (nasconde i giorni dei mesi adiacenti)
                                         html_cal += "<div style='visibility:hidden;'></div>"
                                     else:
                                         occ = occ_attuale if day < data_libero else 0
-                                        # Calcolo Colore
-                                        if day < start_date or day > end_date:
-                                            bg_color = "#333333" # Fuori Orizzonte Scelto
-                                        elif day.weekday() >= 5:
-                                            bg_color = "#333333" # Weekend
-                                        elif occ == 0:
-                                            bg_color = "#FF4B4B" # Rosso / Bench
-                                        elif occ < 100:
-                                            bg_color = "#FFD700" # Giallo / Parziale
-                                        else:
-                                            bg_color = "#00CC96" # Verde / Staffato
+                                        if day < start_date or day > end_date: bg_color = "#333333"
+                                        elif day.weekday() >= 5: bg_color = "#333333"
+                                        elif occ == 0: bg_color = "#FF4B4B"
+                                        elif occ < 100: bg_color = "#FFD700"
+                                        else: bg_color = "#00CC96"
                                             
                                         html_cal += f"<div style='background-color:{bg_color}; height:35px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:bold; color:#FFF;'>{day.day}</div>"
                             
                             html_cal += "</div>"
                             st.markdown(html_cal, unsafe_allow_html=True)
 
-        # =====================================
-        # PM 5: ANALISI SINGOLI PROFILI (CALENDARIO MESE)
-        # =====================================
         elif pagina_pm == "👤 Analisi Profili":
             st.title("Indagine Singola Risorsa")
             
@@ -580,26 +555,21 @@ elif ruolo_utente == "Project Manager":
                 st.markdown("---")
                 st.subheader("🗓️ Calendario Visuale (Mensile)")
                 
-                # Input per l'orizzonte temporale totale (es. 6 mesi)
                 date_range = st.date_input("Seleziona l'orizzonte totale di analisi:", value=(datetime.today(), datetime.today() + timedelta(days=180)))
                 
                 if len(date_range) == 2:
                     start_date, end_date = date_range
                     data_libero = datetime.strptime(dati_ricerca['Disponibile_dal'], "%Y-%m-%d").date()
                     
-                    # Calcola tutti i mesi all'interno dell'orizzonte selezionato
                     mesi_presenti = []
                     curr = start_date.replace(day=1)
                     while curr <= end_date:
                         mesi_presenti.append((curr.year, curr.month))
-                        # Aggiungi un mese
                         if curr.month == 12: curr = curr.replace(year=curr.year+1, month=1)
                         else: curr = curr.replace(month=curr.month+1)
                     
-                    # Controllo indici per la navigazione
                     if st.session_state.cal_month_idx >= len(mesi_presenti): st.session_state.cal_month_idx = 0
                     
-                    # UI Navigazione Mese
                     col_p, col_m, col_n = st.columns([1,2,1])
                     if col_p.button("◀ Mese Precedente"):
                         if st.session_state.cal_month_idx > 0:
@@ -611,53 +581,41 @@ elif ruolo_utente == "Project Manager":
                             st.rerun()
                             
                     anno_corr, mese_corr = mesi_presenti[st.session_state.cal_month_idx]
-                    nome_mese = calendar.month_name[mese_corr].capitalize()
+                    mesi_ita = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
+                    nome_mese = mesi_ita[mese_corr]
                     col_m.markdown(f"<h3 style='text-align:center; margin-top:0;'>{nome_mese} {anno_corr}</h3>", unsafe_allow_html=True)
                     
-                    # Generazione del calendario per IL MESE selezionato
-                    cal = calendar.Calendar(firstweekday=0) # Lunedi=0
+                    cal = calendar.Calendar(firstweekday=0)
                     month_days = cal.monthdatescalendar(anno_corr, mese_corr)
                     
-                    # Header giorni settimana
                     giorni_sett = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
                     html_cal = "<div style='display:grid; grid-template-columns: repeat(7, 1fr); gap: 10px; max-width: 600px; margin: auto;'>"
                     for g in giorni_sett:
                         html_cal += f"<div style='text-align:center; font-weight:bold; color:#888;'>{g}</div>"
                         
-                    # Caselle dei giorni
                     for week in month_days:
                         for day in week:
                             if day.month != mese_corr:
-                                # Giorno del mese precedente/successivo (vuoto)
                                 html_cal += "<div style='visibility:hidden;'></div>"
                             else:
-                                # Logica del colore per il singolo giorno
                                 occ = dati_ricerca['Occupazione_%'] if day < data_libero else 0
-                                if day < start_date or day > end_date:
-                                    bg_color = "#333333" # Fuori dall'orizzonte (grigio)
-                                elif day.weekday() >= 5:
-                                    bg_color = "#333333" # Weekend
-                                elif occ == 0:
-                                    bg_color = "#FF4B4B" # Libero / Bench
-                                elif occ < 100:
-                                    bg_color = "#FFD700" # Parziale
-                                else:
-                                    bg_color = "#00CC96" # Staffato 100%
+                                if day < start_date or day > end_date: bg_color = "#333333"
+                                elif day.weekday() >= 5: bg_color = "#333333"
+                                elif occ == 0: bg_color = "#FF4B4B"
+                                elif occ < 100: bg_color = "#FFD700"
+                                else: bg_color = "#00CC96"
                                     
                                 html_cal += f"<div style='background-color:{bg_color}; height:60px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:bold; color:#FFF;'>{day.day}</div>"
                     
                     html_cal += "</div>"
                     st.markdown(html_cal, unsafe_allow_html=True)
 
-        # =====================================
-        # PM 6: MASTER DATA
-        # =====================================
         elif pagina_pm == "🗄️ Master Data (Database)":
             st.title("Vista Tabellare Completa")
             st.dataframe(df.drop(columns=['Esperienze']), use_container_width=True)
 
 # ==========================================
-# VISTA 3: HR (RISORSE UMANE) - (Intatta per brevità, ometti modifiche logiche qui se non chieste)
+# VISTA 3: HR (RISORSE UMANE)
 # ==========================================
 elif ruolo_utente == "HR (Risorse Umane)":
     if not st.session_state.hr_logged_in:
@@ -669,21 +627,166 @@ elif ruolo_utente == "HR (Risorse Umane)":
                 if username == "hr" and password == "hr123":
                     st.session_state.hr_logged_in = True
                     st.rerun()
+                else: st.error("Credenziali errate.")
     else:
         st.sidebar.markdown("---")
-        pagina_hr = st.sidebar.radio("Vai a:", ["🏠 Dashboard HR", "➕ Onboarding", "🗄️ Master Data"])
-        if st.sidebar.button("🚪 Esci"):
+        st.sidebar.subheader("🛠️ Navigazione HR")
+        pagina_hr = st.sidebar.radio("Vai a:", [
+            "🏠 Dashboard HR", 
+            "➕ Onboarding Nuovo Assunto",
+            "✏️ Gestione e Promozioni",
+            "📥 Integrazione Zucchetti", 
+            "🗄️ Master Data Dipendenti"
+        ])
+        if st.sidebar.button("🚪 Esci (Logout)"):
             st.session_state.hr_logged_in = False
             st.rerun()
 
+        # =====================================
+        # HR 1: DASHBOARD
+        # =====================================
         if pagina_hr == "🏠 Dashboard HR":
             st.title("Dashboard Risorse Umane")
-            st.metric("Totale Dipendenti", len(df))
-        elif pagina_hr == "➕ Onboarding":
+            st.info("Panoramica sulla composizione della forza lavoro aziendale.")
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Totale Dipendenti (Headcount)", len(df))
+            c2.metric("Età Media (Figurativa)", "32 Anni")
+            c3.metric("Costo Medio GG", f"€ {df['Costo_Giorno'].mean():.0f}")
+            
+            st.markdown("---")
+            col_chart1, col_chart2 = st.columns(2)
+            with col_chart1:
+                st.subheader("Distribuzione Seniority")
+                df_sen = df['Seniority'].value_counts().reset_index()
+                df_sen.columns = ['Seniority', 'Conteggio']
+                fig1 = px.pie(df_sen, values='Conteggio', names='Seniority', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                st.plotly_chart(fig1, use_container_width=True)
+            
+            with col_chart2:
+                st.subheader("Distribuzione per Ruolo")
+                aree_disponibili = ["Tutte le Aree"] + sorted(list(df['Macro_Area'].unique()))
+                area_selezionata = st.selectbox("Filtra per Macro Area:", aree_disponibili)
+                
+                df_ruoli = df if area_selezionata == "Tutte le Aree" else df[df['Macro_Area'] == area_selezionata]
+                df_ruoli = df_ruoli['Ruolo'].str.replace('Senior ', '').str.replace('Mid ', '').str.replace('Junior ', '').value_counts().reset_index()
+                df_ruoli.columns = ['Ruolo', 'Conteggio']
+                fig2 = px.bar(df_ruoli, x='Ruolo', y='Conteggio', color='Ruolo')
+                st.plotly_chart(fig2, use_container_width=True)
+
+        # =====================================
+        # HR 2: ONBOARDING NUOVO ASSUNTO
+        # =====================================
+        elif pagina_hr == "➕ Onboarding Nuovo Assunto":
             st.title("Assunzione Nuovo Dipendente")
+            st.write("Aggiungi una nuova risorsa al Database aziendale. Sarà immediatamente visibile ai Project Manager.")
+            
             with st.form("form_onboarding"):
-                n_nome = st.text_input("Nome e Cognome")
-                if st.form_submit_button("Salva"):
-                    st.success(f"{n_nome} aggiunto!")
-        elif pagina_hr == "🗄️ Master Data":
-            st.dataframe(df.drop(columns=['Esperienze']))
+                col1, col2 = st.columns(2)
+                nuovo_nome = col1.text_input("Nome e Cognome")
+                nuova_sen = col2.selectbox("Seniority", ["Junior", "Mid", "Senior"])
+                
+                nuovo_ruolo = col1.selectbox("Titolo Professionale", ["Frontend Developer", "Backend Developer", "Fullstack Developer", "DevOps Engineer", "Data Scientist", "Data Analyst", "Project Manager", "Business Analyst"])
+                nuove_skill = col2.text_input("Competenze Iniziali (Separate da virgola, es: React, Node)")
+                
+                macro_area_auto = "IT" if "Developer" in nuovo_ruolo or "DevOps" in nuovo_ruolo else "Data Science" if "Data" in nuovo_ruolo else "Risk/Management"
+                costo_gg = col1.number_input("Costo Giornaliero Base (€)", min_value=50, max_value=1000, value=200)
+                
+                if st.form_submit_button("✅ Conferma Assunzione e Salva a DB"):
+                    if nuovo_nome and nuove_skill:
+                        nuovo_dipendente = pd.DataFrame([{
+                            "ID": f"RES-{len(df)+1000}",
+                            "Nome": nuovo_nome,
+                            "Macro_Area": macro_area_auto,
+                            "Ruolo": f"{nuova_sen} {nuovo_ruolo}",
+                            "Seniority": nuova_sen,
+                            "Skill": nuove_skill,
+                            "Esperienze": [],
+                            "Costo_Giorno": costo_gg,
+                            "Tariffa_Vendita": costo_gg * 1.4,
+                            "Occupazione_%": 0, 
+                            "Disponibile_dal": datetime.now().strftime("%Y-%m-%d")
+                        }])
+                        st.session_state.df_risorse = pd.concat([st.session_state.df_risorse, nuovo_dipendente], ignore_index=True)
+                        st.success(f"Assunzione di {nuovo_nome} completata! Il dipendente è ora a sistema.")
+                    else:
+                        st.error("Per favore compila Nome e Competenze.")
+
+        # =====================================
+        # HR 3: GESTIONE E PROMOZIONI
+        # =====================================
+        elif pagina_hr == "✏️ Gestione e Promozioni":
+            st.title("Gestione Dipendente e Promozioni")
+            st.write("Aggiorna l'anagrafica, promuovi di livello o modifica il costo di una singola risorsa.")
+            
+            nome_ricerca = st.selectbox("Seleziona Dipendente da modificare:", df['Nome'].tolist())
+            if nome_ricerca:
+                idx = df.index[df['Nome'] == nome_ricerca].tolist()[0]
+                dati_attuali = df.iloc[idx]
+                
+                with st.form("form_modifica_dipendente"):
+                    st.subheader(f"Modifica Scheda: {dati_attuali['Nome']}")
+                    c1, c2 = st.columns(2)
+                    
+                    nuovo_nome = c1.text_input("Nome e Cognome", value=dati_attuali['Nome'])
+                    
+                    ruolo_attuale_puro = dati_attuali['Ruolo'].replace('Senior ', '').replace('Mid ', '').replace('Junior ', '')
+                    ruoli_disponibili = ["Frontend Developer", "Backend Developer", "Fullstack Developer", "DevOps Engineer", "Data Scientist", "Data Analyst", "Project Manager", "Business Analyst"]
+                    if ruolo_attuale_puro not in ruoli_disponibili:
+                        ruoli_disponibili.append(ruolo_attuale_puro)
+                    
+                    index_sen = ["Junior", "Mid", "Senior"].index(dati_attuali['Seniority'])
+                    nuova_sen = c1.selectbox("Seniority", ["Junior", "Mid", "Senior"], index=index_sen)
+                    
+                    index_ruolo = ruoli_disponibili.index(ruolo_attuale_puro)
+                    nuovo_ruolo = c2.selectbox("Titolo Professionale", ruoli_disponibili, index=index_ruolo)
+                    
+                    nuove_skill = st.text_input("Competenze (Separate da virgola)", value=dati_attuali['Skill'])
+                    
+                    c3, c4 = st.columns(2)
+                    costo_gg = c3.number_input("Costo Giornaliero Base (€)", min_value=50, max_value=2000, value=int(dati_attuali['Costo_Giorno']))
+                    tariffa_vendita = c4.number_input("Tariffa di Vendita (€)", min_value=50, max_value=3000, value=int(dati_attuali['Tariffa_Vendita']))
+                    
+                    if st.form_submit_button("💾 Salva Modifiche al Profilo"):
+                        st.session_state.df_risorse.at[idx, 'Nome'] = nuovo_nome
+                        st.session_state.df_risorse.at[idx, 'Seniority'] = nuova_sen
+                        st.session_state.df_risorse.at[idx, 'Ruolo'] = f"{nuova_sen} {nuovo_ruolo}"
+                        st.session_state.df_risorse.at[idx, 'Skill'] = nuove_skill
+                        st.session_state.df_risorse.at[idx, 'Costo_Giorno'] = costo_gg
+                        st.session_state.df_risorse.at[idx, 'Tariffa_Vendita'] = tariffa_vendita
+                        st.success(f"I dati di {nuovo_nome} sono stati aggiornati con successo nel Master Data!")
+                        st.rerun()
+
+        # =====================================
+        # HR 4: INTEGRAZIONE ZUCCHETTI
+        # =====================================
+        elif pagina_hr == "📥 Integrazione Zucchetti":
+            st.title("Sincronizzazione Software Paghe / Zucchetti")
+            st.info("Trattandosi di un modulo disaccoppiato, puoi scaricare il template o fare l'upload massivo per aggiornare le anagrafiche dei dipendenti.")
+            
+            st.subheader("1. Esporta dati attuali (Per Zucchetti)")
+            df_export = df.drop(columns=['Esperienze', 'Macro_Area'], errors='ignore')
+            csv_export = df_export.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Scarica Export Zucchetti (CSV)", data=csv_export, file_name='export_hr_zucchetti.csv', mime='text/csv')
+            
+            st.markdown("---")
+            st.subheader("2. Carica aggiornamenti da Zucchetti")
+            uploaded_file = st.file_uploader("Upload file (.csv o .xlsx)", type=['csv', 'xlsx'])
+            
+            if uploaded_file is not None:
+                with st.spinner("Sincronizzazione DB in corso..."):
+                    if uploaded_file.name.endswith('.csv'):
+                        new_df = pd.read_csv(uploaded_file)
+                    else:
+                        new_df = pd.read_excel(uploaded_file)
+                    st.success("File letto correttamente! (In produzione andrebbe a sovrascrivere o fare un merge con il DB)")
+                    st.dataframe(new_df.head(5))
+
+        # =====================================
+        # HR 5: MASTER DATA
+        # =====================================
+        elif pagina_hr == "🗄️ Master Data Dipendenti":
+            st.title("Anagrafica Completa Dipendenti")
+            st.write("Vista raw del database aziendale.")
+            df_display = df.drop(columns=['Esperienze', 'Macro_Area'], errors='ignore')
+            st.dataframe(df_display, use_container_width=True)
