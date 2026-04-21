@@ -20,7 +20,7 @@ st.markdown("""
     
     html, body, [class*="css"] { font-family: 'Outfit', sans-serif !important; }
     
-    /* Bottoni stile corporate */
+    /* Bottoni stile corporate uniformato */
     .stButton>button {
         border-radius: 6px !important;
         font-weight: 600 !important;
@@ -147,7 +147,6 @@ def genera_database():
     return pd.DataFrame(db)
 
 def estrai_progetto_attuale(row):
-    """Estrae il progetto corrente se la risorsa è occupata"""
     if row.get('Occupazione_%', 0) > 0 and isinstance(row.get('Esperienze', []), list) and len(row['Esperienze']) > 0:
         ult = row['Esperienze'][-1]
         return f"{ult.get('Cliente', 'N/D')} - {ult.get('Progetto', 'N/D')}"
@@ -182,7 +181,6 @@ if "current_it_user" not in st.session_state: st.session_state.current_it_user =
 # 2. MOTORI AI E COPILOT
 # ==========================================
 def analizza_testo(testo):
-    """Motore Deterministico (Rules Engine MVP) per lo Scoping"""
     testo_lower = testo.lower()
     competenze_trovate = []
     regole = {
@@ -201,7 +199,6 @@ def analizza_testo(testo):
     return fasi, competenze_trovate
 
 def fallback_simulatore_chatbot(prompt, df):
-    """Simulatore Regex se non c'è l'API Key Groq"""
     prompt_l = prompt.lower()
     nome_trovato = None
     for nome in df['Nome']:
@@ -228,7 +225,6 @@ def fallback_simulatore_chatbot(prompt, df):
     return None, "Comando di sistema non riconosciuto. Sintassi non valida."
 
 def parse_chatbot_intent_llm(prompt, df, api_key):
-    """Vero LLM tramite Groq per il Copilot Chatbot (Versione Antiproiettile)"""
     if not api_key:
         return fallback_simulatore_chatbot(prompt, df)
         
@@ -246,7 +242,7 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     2. Se l'utente chiede di PROMUOVERE/AVANZARE DI LIVELLO:
     {{"azione": "promuovi", "nome": "Nome e Cognome", "nuova_seniority": "Junior/Mid/Senior", "messaggio_riepilogo": "Iter di promozione preparato..."}}
     
-    3. Se l'utente saluta o fa richieste fuori contesto (es. "ciao come stai"):
+    3. Se l'utente saluta o fa richieste fuori contesto:
     {{"azione": "errore", "messaggio_riepilogo": "Copilot di sistema online. Funzionalità attive: Allocazione su commessa, Variazione livelli di seniority."}}
     """
     
@@ -322,30 +318,29 @@ def esegui_azione_chatbot(dati_finali):
 # ==========================================
 # 3. SIDEBAR E NAVIGAZIONE (CORPORATE STYLE)
 # ==========================================
-# Logo Aziendale
 st.sidebar.markdown("<div style='font-size: 26px; font-weight: 800; letter-spacing: -1px; color: #F8F9FA; margin-bottom: 30px; margin-top: -20px;'>Resource<span style='color: #3B82F6;'>AI</span></div>", unsafe_allow_html=True)
 
-ruolo_utente = st.sidebar.selectbox("PROFILO DI ACCESSO", ["Project Management", "Human Resources", "Consulente IT"])
+ruolo_utente = st.sidebar.selectbox("PROFILO DI ACCESSO", ["Resource Allocation Engine", "Talent Management", "Talent Workspace"])
 st.sidebar.markdown("<br>", unsafe_allow_html=True)
 
 # Gestione Logout Dinamica
-if ruolo_utente != "Project Management": 
+if ruolo_utente != "Resource Allocation Engine": 
     st.session_state.pm_logged_in = False
-if ruolo_utente != "Consulente IT": 
+if ruolo_utente != "Talent Workspace": 
     st.session_state.it_logged_in = False
     st.session_state.current_it_user = None
-if ruolo_utente != "Human Resources": 
+if ruolo_utente != "Talent Management": 
     st.session_state.hr_logged_in = False
 
 df = st.session_state.df_risorse
 
 
 # ==========================================
-# VISTA 1: PROJECT MANAGER
+# VISTA 1: RESOURCE ALLOCATION ENGINE (Ex PM)
 # ==========================================
-if ruolo_utente == "Project Management":
+if ruolo_utente == "Resource Allocation Engine":
     if not st.session_state.pm_logged_in:
-        st.markdown("<h1 class='gradient-title'>Gateway Project Management</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='gradient-title'>Gateway Resource Allocation Engine</h1>", unsafe_allow_html=True)
         with st.form("login_pm_form"):
             username = st.text_input("ID Utente")
             password = st.text_input("Credenziale di Rete", type="password", help="admin / admin123")
@@ -360,10 +355,10 @@ if ruolo_utente == "Project Management":
         tab_allocazioni = f"Gestione Allocazioni ({num_req_alloc})" if num_req_alloc > 0 else "Gestione Allocazioni"
         
         pagina_pm = st.sidebar.radio("MODULI OPERATIVI", [
-            "Control Center", 
-            "AI Scoping & Staffing",
+            "Homepage", 
+            "Allocation Advisor",
             tab_allocazioni,
-            "Scheduling Agende",
+            "Componi il tuo team",
             "Indagine Profili", 
             "Master Data Risorse"
         ])
@@ -373,10 +368,10 @@ if ruolo_utente == "Project Management":
             st.rerun()
 
         # ----------------------------------------
-        # SOTTO-VISTA: Control Center
+        # SOTTO-VISTA: Homepage (Ex Control Center)
         # ----------------------------------------
-        if pagina_pm == "Control Center":
-            st.markdown("<h1 class='gradient-title'>Control Center Manageriale</h1>", unsafe_allow_html=True)
+        if pagina_pm == "Homepage":
+            st.markdown("<h1 class='gradient-title'>Homepage Manageriale</h1>", unsafe_allow_html=True)
             if num_req_alloc > 0:
                 st.warning(f"Avviso di Sistema: {num_req_alloc} richieste di allocazione in coda di attesa.")
             
@@ -402,10 +397,10 @@ if ruolo_utente == "Project Management":
             st.plotly_chart(applica_tema_plotly(fig_fin), use_container_width=True)
 
         # ----------------------------------------
-        # SOTTO-VISTA: AI Scoping
+        # SOTTO-VISTA: Allocation Advisor (Ex AI Scoping)
         # ----------------------------------------
-        elif pagina_pm == "AI Scoping & Staffing":
-            st.markdown("<h1 class='gradient-title'>Motore Scoping Dinamico</h1>", unsafe_allow_html=True)
+        elif pagina_pm == "Allocation Advisor":
+            st.markdown("<h1 class='gradient-title'>Allocation Advisor</h1>", unsafe_allow_html=True)
             st.caption("Modulo Analisi: Rules Engine Deterministico (Upgrade LLM Semantico in roadmap)")
             
             def imposta_brief_demo():
@@ -447,10 +442,23 @@ if ruolo_utente == "Project Management":
                 tab_wbs, tab_team = st.tabs(["Work Breakdown Structure", "Assessment Economico Team"])
                 
                 with tab_wbs:
+                    # Storicizza le modifiche dell'editor nella session_state
                     edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", key="wbs_editor", use_container_width=True)
+                    st.session_state.wbs_data = edited_wbs
                 
                 with tab_team:
-                    edited_team = st.data_editor(st.session_state.team_data, key="team_editor", use_container_width=True)
+                    # Rende le colonne Costo_gg e Margine_% modificabili con step incrementali
+                    edited_team = st.data_editor(
+                        st.session_state.team_data, 
+                        key="team_editor", 
+                        use_container_width=True,
+                        column_config={
+                            "Costo_gg": st.column_config.NumberColumn("Costo_gg", step=50),
+                            "Margine_%": st.column_config.NumberColumn("Margine_%", step=5)
+                        }
+                    )
+                    # Aggiorna session state per mantenere la memoria delle operazioni
+                    st.session_state.team_data = edited_team
                     
                     costo_totale_progetto = 0
                     proposta_commerciale = 0
@@ -462,7 +470,7 @@ if ruolo_utente == "Project Management":
                             costo_totale_progetto += costo_fase
                             proposta_commerciale += costo_fase * (1 + (membro.iloc[0]['Margine_%'] / 100))
                     
-                    st.markdown("<br>### Previsione Finanziaria di Commessa", unsafe_allow_html=True)
+                    st.markdown("<br><div style='font-size: 1.6rem; font-weight: 700; color: #F8F9FA; margin-bottom: 15px;'>Previsione Finanziaria di Commessa</div>", unsafe_allow_html=True)
                     c_fin1, c_fin2, c_fin3 = st.columns(3)
                     c_fin1.markdown(f"<div class='kpi-card orange'><h3>Spesa Operativa (OPEX)</h3><h2>€ {costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
                     c_fin2.markdown(f"<div class='kpi-card blue'><h3>Valore Offerta (Mercato)</h3><h2>€ {proposta_commerciale:,.0f}</h2></div>", unsafe_allow_html=True)
@@ -472,9 +480,9 @@ if ruolo_utente == "Project Management":
         # SOTTO-VISTA: Gestione Allocazioni
         # ----------------------------------------
         elif pagina_pm == tab_allocazioni:
-            st.markdown("<h1 class='gradient-title'>Code di Allocazione e Assegnazione</h1>", unsafe_allow_html=True)
+            st.markdown("<h1 class='gradient-title'>Allocazione risorse</h1>", unsafe_allow_html=True)
             
-            st.subheader("Istanze Pendenti")
+            st.subheader("Richieste in Sospeso")
             if len(st.session_state.pending_allocations) > 0:
                 for i, req in enumerate(list(st.session_state.pending_allocations)):
                     with st.container(border=True):
@@ -494,7 +502,7 @@ if ruolo_utente == "Project Management":
                 st.caption("Nessun task in coda operativa.")
                 
             st.divider()
-            st.subheader("Modulo di Override Costante (Top-Down)")
+            st.subheader("Modulo di Override")
             with st.form("manual_alloc"):
                 r_scelta = st.selectbox("Identificativo Risorsa:", df['Nome'].tolist())
                 c_form1, c_form2 = st.columns(2)
@@ -517,9 +525,9 @@ if ruolo_utente == "Project Management":
                         st.error("Log: Campi obbligatori mancanti.")
 
         # ----------------------------------------
-        # SOTTO-VISTA: Scheduling (Calendari Visivi)
+        # SOTTO-VISTA: Componi il tuo team
         # ----------------------------------------
-        elif pagina_pm == "Scheduling Agende":
+        elif pagina_pm == "Componi il tuo team":
             st.markdown("<h1 class='gradient-title'>Analisi Visiva Disponibilità Team</h1>", unsafe_allow_html=True)
             st.write("Verifica degli incroci di agenda su orizzonte esteso.")
             
@@ -626,7 +634,7 @@ if ruolo_utente == "Project Management":
                             st.markdown(html_cal, unsafe_allow_html=True)
 
         # ----------------------------------------
-        # SOTTO-VISTA: Analisi Profili (Singolo)
+        # SOTTO-VISTA: Indagine Profili
         # ----------------------------------------
         elif pagina_pm == "Indagine Profili":
             st.markdown("<h1 class='gradient-title'>Ispezione Dettaglio Risorsa</h1>", unsafe_allow_html=True)
@@ -639,7 +647,8 @@ if ruolo_utente == "Project Management":
                 c1, c2, c3 = st.columns(3)
                 c1.markdown(f"<div class='kpi-card blue'><h3>Livello Classificazione</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Ruolo']}</p></div>", unsafe_allow_html=True)
                 c2.markdown(f"<div class='kpi-card orange'><h3>Matrice Competenze</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Skill']}</p></div>", unsafe_allow_html=True)
-                c3.markdown(f"<div class='kpi-card green'><h3>Stato Rete Attuale</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>Saturazione {dati_ricerca['Occupazione_%']}%</p></div>", unsafe_allow_html=True)
+                # Reso esplicito il nome del cliente
+                c3.markdown(f"<div class='kpi-card green'><h3>Stato Rete Attuale</h3><p style='font-size:16px; font-weight:700; color:#FFF; margin:0;'>Saturazione {dati_ricerca['Occupazione_%']}%<br>Cliente/Progetto: <span style='color:#10B981;'>{prog_att}</span></p></div>", unsafe_allow_html=True)
                 
                 st.markdown("---")
                 st.subheader("Rappresentazione Vettoriale Agenda (Zoom-in)")
@@ -727,9 +736,9 @@ if ruolo_utente == "Project Management":
             )
 
 # ==========================================
-# VISTA 2: CONSULENTE IT
+# VISTA 2: TALENT WORKSPACE (Ex Consulente IT)
 # ==========================================
-elif ruolo_utente == "Consulente IT":
+elif ruolo_utente == "Talent Workspace":
     if not st.session_state.it_logged_in:
         st.markdown("<h1 class='gradient-title'>Gateway di Autenticazione Personale</h1>", unsafe_allow_html=True)
         with st.form("login_it_form"):
@@ -744,7 +753,7 @@ elif ruolo_utente == "Consulente IT":
                     st.error("Handshake fallito. Codice non autorizzato.")
     else:
         st.markdown(f"<h1 class='gradient-title'>Area Operativa: {st.session_state.current_it_user}</h1>", unsafe_allow_html=True)
-        if st.button("Abbatti Connessione"):
+        if st.button("Logout"):
             st.session_state.it_logged_in = False
             st.rerun()
             
@@ -772,7 +781,7 @@ elif ruolo_utente == "Consulente IT":
                 progetto_req = st.text_input("Codice Cliente / Progetto Target")
                 disp_req = st.slider("Fattore di Carico Previsto (%)", 25, 100, 50, step=25)
                 date_req = st.date_input("Timeline Stimata", value=(datetime.today(), datetime.today() + timedelta(days=30)))
-                if st.form_submit_button("Invia Pacchetto Richiesta"):
+                if st.form_submit_button("Invia Richiesta"):
                     if len(date_req) == 2:
                         st.session_state.pending_allocations.append({
                             "ID": dati_utente['ID'], "Nome": dati_utente['Nome'], 
@@ -785,9 +794,9 @@ elif ruolo_utente == "Consulente IT":
             st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
-# VISTA 3: HUMAN RESOURCES
+# VISTA 3: TALENT MANAGEMENT (Ex Human Resources)
 # ==========================================
-elif ruolo_utente == "Human Resources":
+elif ruolo_utente == "Talent Management":
     if not st.session_state.hr_logged_in:
         st.markdown("<h1 class='gradient-title'>Gateway Amministrativo HR</h1>", unsafe_allow_html=True)
         with st.form("login_hr_form"):
@@ -801,7 +810,7 @@ elif ruolo_utente == "Human Resources":
                     st.error("Accesso Denegato. Credenziali incorrette.")
     else:
         pagina_hr = st.sidebar.radio("MODULI HR ATTIVI", [
-            "Analitiche Strutturali", 
+            "Homepage", 
             "Processo Onboarding",
             "Manutenzione Inquadramenti",
             "Interfaccia ERP (Zucchetti)", 
@@ -813,9 +822,9 @@ elif ruolo_utente == "Human Resources":
             st.rerun()
 
         # ----------------------------------------
-        # SOTTO-VISTA: HR Analytics
+        # SOTTO-VISTA: Homepage (Ex HR Analytics)
         # ----------------------------------------
-        if pagina_hr == "Analitiche Strutturali":
+        if pagina_hr == "Homepage":
             st.markdown("<h1 class='gradient-title'>Metriche Globali Risorse</h1>", unsafe_allow_html=True)
             
             c1, c2, c3 = st.columns(3)
@@ -830,7 +839,10 @@ elif ruolo_utente == "Human Resources":
                 df_sen = df['Seniority'].value_counts().reset_index()
                 df_sen.columns = ['Seniority', 'Conteggio']
                 fig1 = px.pie(df_sen, values='Conteggio', names='Seniority', hole=0.4, color_discrete_sequence=px.colors.sequential.Tealgrn)
-                st.plotly_chart(applica_tema_plotly(fig1), use_container_width=True)
+                # Rimozione Legenda
+                fig1 = applica_tema_plotly(fig1)
+                fig1.update_layout(showlegend=False)
+                st.plotly_chart(fig1, use_container_width=True)
             
             with col_chart2:
                 st.subheader("Distribuzione Assorbimento per Ruoli")
@@ -841,7 +853,10 @@ elif ruolo_utente == "Human Resources":
                 df_ruoli = df_ruoli['Ruolo'].str.replace('Senior ', '').str.replace('Mid ', '').str.replace('Junior ', '').value_counts().reset_index()
                 df_ruoli.columns = ['Ruolo', 'Conteggio']
                 fig2 = px.bar(df_ruoli, x='Ruolo', y='Conteggio', color='Ruolo', color_discrete_sequence=px.colors.sequential.Blues_r)
-                st.plotly_chart(applica_tema_plotly(fig2), use_container_width=True)
+                # Rimozione Legenda
+                fig2 = applica_tema_plotly(fig2)
+                fig2.update_layout(showlegend=False)
+                st.plotly_chart(fig2, use_container_width=True)
 
         # ----------------------------------------
         # SOTTO-VISTA: Onboarding Nuovo Assunto
