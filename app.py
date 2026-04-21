@@ -191,12 +191,12 @@ def get_progetti_risorsa(id_risorsa, df_alloc, df_comm):
     
     nodi = []
     for _, a in allocs.iterrows():
-        nome_c = df_comm[df_comm['ID_Commessa'] == a['ID_Commessa']]['Cliente'].values[0]
+        match = df_comm[df_comm['ID_Commessa'] == a['ID_Commessa']]
+        nome_c = match['Cliente'].values[0] if not match.empty else "Sconosciuto"
         nodi.append(f"{nome_c} ({a['Impegno_%']}%)")
     return " | ".join(nodi)
 
-# --- FIX INIZIALIZZAZIONE (Evita l'AttributeError in cache) ---
-# Controlliamo la presenza di "df_allocazioni" per essere sicuri che tutte le nuove tabelle ci siano.
+# --- FIX INIZIALIZZAZIONE ---
 if "df_risorse" not in st.session_state or "df_allocazioni" not in st.session_state:
     res, comm, alloc, ts = genera_dati_strutturali()
     st.session_state.df_risorse = res
@@ -231,13 +231,11 @@ def analizza_testo(testo):
         "aws": ("AWS", 10), "docker": ("Docker", 5), "kubernetes": ("Kubernetes", 10),
         "machine learning": ("Machine Learning", 20), "sql": ("SQL", 8), "typescript": ("TypeScript", 10)
     }
-    
     fasi = []
     for key, (skill, giorni) in regole.items():
         if key in testo_lower:
             competenze_trovate.append(skill)
             fasi.append({"Fase": f"Sviluppo {skill}", "Skill": skill, "Giorni": giorni})
-            
     return fasi, competenze_trovate
 
 def fallback_simulatore_chatbot(prompt, df):
@@ -269,22 +267,13 @@ def fallback_simulatore_chatbot(prompt, df):
 def parse_chatbot_intent_llm(prompt, df, api_key):
     if not api_key:
         return fallback_simulatore_chatbot(prompt, df)
-        
     lista_nomi = ", ".join(df['Nome'].tolist())
-    
     system_prompt = f"""
     Sei Copilot. Rispondi SEMPRE E SOLO con JSON valido. Nomi a DB: {lista_nomi}
-    
-    1. ALLOCARE:
-    {{"azione": "alloca", "nome": "Nome Cognome", "percentuale": 50, "cliente": "ID_Commessa", "messaggio_riepilogo": "Allocazione inizializzata..."}}
-    
-    2. PROMUOVERE:
-    {{"azione": "promuovi", "nome": "Nome Cognome", "nuova_seniority": "Senior", "messaggio_riepilogo": "Upgrade preparato..."}}
-    
-    3. ALTRO:
-    {{"azione": "errore", "messaggio_riepilogo": "Comandi: alloca risorsa, promuovi risorsa."}}
+    1. ALLOCARE: {{"azione": "alloca", "nome": "Nome Cognome", "percentuale": 50, "cliente": "ID_Commessa", "messaggio_riepilogo": "Allocazione inizializzata..."}}
+    2. PROMUOVERE: {{"azione": "promuovi", "nome": "Nome Cognome", "nuova_seniority": "Senior", "messaggio_riepilogo": "Upgrade preparato..."}}
+    3. ALTRO: {{"azione": "errore", "messaggio_riepilogo": "Comandi: alloca risorsa, promuovi risorsa."}}
     """
-    
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -306,23 +295,16 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
 def esegui_azione_chatbot(dati_finali):
     df_ris = st.session_state.df_risorse
     idx_ris = df_ris[df_ris['Nome'] == dati_finali['nome']].index
-    
     if len(idx_ris) == 0:
         st.session_state.chat_msgs.append({"role": "assistant", "content": "Errore: Risorsa non trovata a database."})
         st.session_state.bot_action = None
         return
         
     id_risorsa = df_ris.iloc[idx_ris[0]]['ID']
-    
     if dati_finali['type'] == 'alloca':
-        nuova_alloc = pd.DataFrame([{
-            "ID_Risorsa": id_risorsa,
-            "ID_Commessa": dati_finali['cliente'],
-            "Impegno_%": dati_finali['perc']
-        }])
+        nuova_alloc = pd.DataFrame([{"ID_Risorsa": id_risorsa, "ID_Commessa": dati_finali['cliente'], "Impegno_%": dati_finali['perc']}])
         st.session_state.df_allocazioni = pd.concat([st.session_state.df_allocazioni, nuova_alloc], ignore_index=True)
         msg = f"Task Eseguito: Profilo **{dati_finali['nome']}** agganciato a **{dati_finali['cliente']}** ({dati_finali['perc']}%)."
-        
     elif dati_finali['type'] == 'promuovi':
         ruolo_puro = df_ris.at[idx_ris[0], 'Ruolo'].replace('Senior ', '').replace('Mid ', '').replace('Junior ', '')
         st.session_state.df_risorse.at[idx_ris[0], 'Seniority'] = dati_finali['nuova_sen']
@@ -373,6 +355,7 @@ if ruolo_utente == "Resource Allocation Engine":
         
         pagina_pm = st.sidebar.radio("MODULI OPERATIVI", [
             "Homepage", 
+            "Centro Gestione Commesse",  # NUOVO MODULO
             "Allocation Advisor",
             tab_allocazioni,
             "Componi il tuo team",
@@ -409,7 +392,8 @@ if ruolo_utente == "Resource Allocation Engine":
             if not overbooked.empty:
                 has_alerts = True
                 for _, r in overbooked.iterrows():
-                    nome_ris = df_risorse[df_risorse['ID'] == r['ID_Risorsa']]['Nome'].values[0]
+                    match_ris = df_risorse[df_risorse['ID'] == r['ID_Risorsa']]
+                    nome_ris = match_ris['Nome'].values[0] if not match_ris.empty else "Sconosciuto"
                     st.markdown(f"<div class='alert-box alert-red'><b>[Over-Allocation Critica]</b> Il record {nome_ris} ({r['ID_Risorsa']}) è saturato al {r['Impegno_%']}%. Necessario re-staffing.</div>", unsafe_allow_html=True)
             
             if len(commesse_loss) > 0:
@@ -444,6 +428,53 @@ if ruolo_utente == "Resource Allocation Engine":
             c3.markdown(f"<div class='kpi-card red'><h3>Margine Bench (GG)</h3><h2>€ {mancati_incassi_gg:,.0f}</h2></div>", unsafe_allow_html=True)
             c4.markdown(f"<div class='kpi-card green'><h3>Revenue Attesa (GG)</h3><h2>€ {revenue_attiva_gg:,.0f}</h2></div>", unsafe_allow_html=True)
 
+        # ----------------------------------------
+        # SOTTO-VISTA: Centro Gestione Commesse (NUOVO)
+        # ----------------------------------------
+        elif pagina_pm == "Centro Gestione Commesse":
+            st.markdown("<h1 class='gradient-title'>Centro Gestione Commesse</h1>", unsafe_allow_html=True)
+            st.write("Hub centrale per l'apertura e il monitoraggio dei progetti aziendali. Tutte le allocazioni pescano da questo Master Data.")
+            
+            # Form per Nuova Commessa
+            with st.expander("➕ Apri Nuova Commessa", expanded=False):
+                with st.form("form_nuova_commessa"):
+                    col1, col2 = st.columns(2)
+                    n_id = col1.text_input("Codice ID (es. PRJ-006)")
+                    n_cliente = col2.text_input("Ragione Sociale Cliente")
+                    n_nome = col1.text_input("Nome Progetto")
+                    n_budget = col2.number_input("Budget Previsto (€)", min_value=1000, step=1000, value=50000)
+                    n_stato = col1.selectbox("Stato", ["In Avvio", "Attivo", "Sospeso", "Chiuso"])
+                    
+                    if st.form_submit_button("Registra a Sistema"):
+                        if n_id and n_cliente and n_nome:
+                            nuova = pd.DataFrame([{
+                                "ID_Commessa": n_id, "Cliente": n_cliente, 
+                                "Nome": n_nome, "Budget": n_budget, "Stato": n_stato
+                            }])
+                            st.session_state.df_commesse = pd.concat([st.session_state.df_commesse, nuova], ignore_index=True)
+                            st.success(f"Commessa {n_id} generata correttamente.")
+                            st.rerun()
+                        else:
+                            st.error("Compila i campi obbligatori (ID, Cliente, Nome).")
+
+            st.markdown("### Elenco Master Data Commesse")
+            # Editor interattivo per modifiche rapide (es. Budget o Stato)
+            edited_comm = st.data_editor(
+                st.session_state.df_commesse,
+                use_container_width=True,
+                num_rows="dynamic",
+                column_config={
+                    "Budget": st.column_config.NumberColumn("Budget (€)", format="€ %d"),
+                    "Stato": st.column_config.SelectboxColumn("Stato Operativo", options=["In Avvio", "Attivo", "Sospeso", "Chiuso"])
+                }
+            )
+            if st.button("Salva Modifiche Globali"):
+                st.session_state.df_commesse = edited_comm
+                st.success("Sincronizzazione eseguita con successo.")
+
+        # ----------------------------------------
+        # SOTTO-VISTA: Allocation Advisor
+        # ----------------------------------------
         elif pagina_pm == "Allocation Advisor":
             st.markdown("<h1 class='gradient-title'>Allocation Advisor</h1>", unsafe_allow_html=True)
             st.caption("Modulo Supporto Decisionale - Scenario Simulator")
@@ -505,10 +536,13 @@ if ruolo_utente == "Resource Allocation Engine":
                     c_fin2.markdown(f"<div class='kpi-card blue'><h3>Valore Offerta (Mercato)</h3><h2>€ {proposta_commerciale:,.0f}</h2></div>", unsafe_allow_html=True)
                     c_fin3.markdown(f"<div class='kpi-card green'><h3>Margine Utile Atteso</h3><h2>€ {proposta_commerciale - costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
 
+        # ----------------------------------------
+        # SOTTO-VISTA: Allocazione risorse
+        # ----------------------------------------
         elif pagina_pm == tab_allocazioni:
             st.markdown("<h1 class='gradient-title'>Allocazione risorse</h1>", unsafe_allow_html=True)
             
-            st.subheader("Richieste in Sospeso")
+            st.subheader("Richieste in Sospeso dai Consulenti")
             if len(st.session_state.pending_allocations) > 0:
                 for i, req in enumerate(list(st.session_state.pending_allocations)):
                     with st.container(border=True):
@@ -524,30 +558,58 @@ if ruolo_utente == "Resource Allocation Engine":
                             st.session_state.pending_allocations.pop(i)
                             st.rerun()
             else: 
-                st.caption("Nessuna richiesta di staffing dai Consulenti IT.")
+                st.caption("Nessuna richiesta in coda.")
                 
             st.divider()
-            st.subheader("Modulo di Override (Assegnazione Diretta)")
-            with st.form("manual_alloc"):
-                r_scelta = st.selectbox("Seleziona Consulente:", df_risorse['Nome'].tolist())
-                commesse_disp = df_commesse['ID_Commessa'] + " - " + df_commesse['Cliente']
-                c_scelta = st.selectbox("Mappa su Commessa Master Data:", commesse_disp.tolist())
-                
-                oggi = datetime.today()
-                date_range = st.date_input("Restrizione Temporale", value=(oggi, oggi + timedelta(days=60)))
-                perc = st.slider("Fattore di Impegno (FTE %)", 0, 100, 100, step=25)
-                
-                if st.form_submit_button("Esegui Forzatura Allocazione"):
-                    if len(date_range) == 2:
+            
+            # --- OVERRIDE ALLOCAZIONI MIGLIORATO ---
+            col_l, col_r = st.columns(2)
+            
+            with col_l:
+                st.subheader("Associa Nuova Commessa")
+                with st.form("manual_alloc"):
+                    r_scelta = st.selectbox("Seleziona Consulente:", df_risorse['Nome'].tolist())
+                    commesse_disp = df_commesse['ID_Commessa'] + " - " + df_commesse['Cliente']
+                    c_scelta = st.selectbox("Mappa su Commessa Master Data:", commesse_disp.tolist())
+                    
+                    perc = st.slider("Fattore di Impegno (FTE %)", 0, 100, 100, step=25)
+                    
+                    if st.form_submit_button("Assegna Risorsa"):
                         id_risorsa = df_risorse[df_risorse['Nome'] == r_scelta]['ID'].values[0]
                         id_commessa = c_scelta.split(" - ")[0]
-                        
                         nuova_alloc = pd.DataFrame([{"ID_Risorsa": id_risorsa, "ID_Commessa": id_commessa, "Impegno_%": perc}])
                         st.session_state.df_allocazioni = pd.concat([st.session_state.df_allocazioni, nuova_alloc], ignore_index=True)
-                        st.success(f"Transazione di rete completata: {r_scelta} agganciato a {id_commessa}.")
-                    else:
-                        st.error("Log: Intervallo date obbligatorio.")
+                        st.success(f"Log: {r_scelta} agganciato a {id_commessa}.")
+                        st.rerun()
 
+            with col_r:
+                st.subheader("Revoca Assegnazioni Esistenti")
+                if not df_allocazioni.empty:
+                    # Facciamo un merge per vedere i nomi e facilitare la rimozione
+                    alloc_view = pd.merge(df_allocazioni, df_risorse[['ID', 'Nome']], left_on='ID_Risorsa', right_on='ID')
+                    alloc_view = pd.merge(alloc_view, df_commesse[['ID_Commessa', 'Nome']], left_on='ID_Commessa', right_on='ID_Commessa', suffixes=('_Ris', '_Comm'))
+                    
+                    opzioni_rimozione = []
+                    for idx, row in alloc_view.iterrows():
+                        opzioni_rimozione.append(f"[{idx}] {row['Nome_Ris']} -> {row['ID_Commessa']} ({row['Impegno_%']}%)")
+                        
+                    with st.form("remove_alloc"):
+                        da_rimuovere = st.selectbox("Seleziona allocazione da interrompere:", opzioni_rimozione)
+                        if st.form_submit_button("Revoca Assegnazione"):
+                            idx_to_drop = int(da_rimuovere.split("]")[0].replace("[", ""))
+                            # idx_to_drop nel df_alloc_view corrisponde all'index originario perché abbiamo fatto un merge... 
+                            # Meglio farlo per indice esatto del df_allocazioni
+                            # Per sicurezza:
+                            real_idx = alloc_view.loc[idx_to_drop].name
+                            st.session_state.df_allocazioni = st.session_state.df_allocazioni.drop(index=real_idx)
+                            st.success("Allocazione revocata con successo.")
+                            st.rerun()
+                else:
+                    st.caption("Nessuna allocazione attiva a sistema.")
+
+        # ----------------------------------------
+        # SOTTO-VISTA: Componi il tuo team
+        # ----------------------------------------
         elif pagina_pm == "Componi il tuo team":
             st.markdown("<h1 class='gradient-title'>Analisi Visiva Disponibilità Team</h1>", unsafe_allow_html=True)
             c_f1, c_f2 = st.columns(2)
@@ -618,6 +680,9 @@ if ruolo_utente == "Resource Allocation Engine":
                             html_cal += "</div>"
                             st.markdown(html_cal, unsafe_allow_html=True)
 
+        # ----------------------------------------
+        # SOTTO-VISTA: Portfolio Commesse
+        # ----------------------------------------
         elif pagina_pm == "Portfolio Commesse":
             st.markdown("<h1 class='gradient-title'>Salute Portfolio Commesse</h1>", unsafe_allow_html=True)
             st.info("Logica Sistema: Il costo consumato è calcolato moltiplicando le giornate caricate dai consulenti nei Timesheet per il loro costo giornaliero (OPEX) a sistema.")
@@ -644,6 +709,9 @@ if ruolo_utente == "Resource Allocation Engine":
                 hide_index=True, use_container_width=True
             )
 
+        # ----------------------------------------
+        # SOTTO-VISTA: Indagine Profili (Con Edit Assegnazioni)
+        # ----------------------------------------
         elif pagina_pm == "Indagine Profili":
             st.markdown("<h1 class='gradient-title'>Ispezione Dettaglio Risorsa</h1>", unsafe_allow_html=True)
             
@@ -654,14 +722,35 @@ if ruolo_utente == "Resource Allocation Engine":
             
             if nome_ricerca:
                 dati_ricerca = df_risorse[df_risorse['Nome'] == nome_ricerca].iloc[0]
-                sat_reale = get_saturazione(dati_ricerca['ID'], df_allocazioni)
-                prog_att = get_progetti_risorsa(dati_ricerca['ID'], df_allocazioni, df_commesse)
+                id_ricerca = dati_ricerca['ID']
+                sat_reale = get_saturazione(id_ricerca, df_allocazioni)
                 
                 c1, c2, c3 = st.columns(3)
                 c1.markdown(f"<div class='kpi-card blue'><h3>Livello Classificazione</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Ruolo']}</p></div>", unsafe_allow_html=True)
                 c2.markdown(f"<div class='kpi-card orange'><h3>Matrice Competenze</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Skill']}</p></div>", unsafe_allow_html=True)
-                c3.markdown(f"<div class='kpi-card green'><h3>Stato Rete Attuale</h3><p style='font-size:16px; font-weight:700; color:#FFF; margin:0;'>Saturazione {sat_reale}%<br>Cliente: <span style='color:#10B981;'>{prog_att}</span></p></div>", unsafe_allow_html=True)
+                c3.markdown(f"<div class='kpi-card green'><h3>Stato Saturazione</h3><p style='font-size:22px; font-weight:700; color:#FFF; margin:0;'>{sat_reale}%</p></div>", unsafe_allow_html=True)
 
+                st.markdown("---")
+                # Gestione Commesse Integrate
+                st.subheader(f"Commesse Assegnate: {nome_ricerca}")
+                allocs_risorsa = df_allocazioni[df_allocazioni['ID_Risorsa'] == id_ricerca]
+                
+                if not allocs_risorsa.empty:
+                    for i, a in allocs_risorsa.iterrows():
+                        nome_c = df_commesse[df_commesse['ID_Commessa'] == a['ID_Commessa']]['Nome'].values[0]
+                        with st.container(border=True):
+                            c_a, c_b, c_c = st.columns([3, 1, 1])
+                            c_a.write(f"**{a['ID_Commessa']}** - {nome_c}")
+                            c_b.write(f"**Impegno:** {a['Impegno_%']}%")
+                            if c_c.button("❌ Revoca", key=f"revoca_{i}"):
+                                st.session_state.df_allocazioni = st.session_state.df_allocazioni.drop(i)
+                                st.rerun()
+                else:
+                    st.info("La risorsa è attualmente a Bench (nessuna commessa assegnata).")
+
+        # ----------------------------------------
+        # SOTTO-VISTA: Master Data
+        # ----------------------------------------
         elif pagina_pm == "Master Data Risorse":
             st.markdown("<h1 class='gradient-title'>Infrastruttura Dati Principale</h1>", unsafe_allow_html=True)
             
@@ -679,7 +768,7 @@ if ruolo_utente == "Resource Allocation Engine":
             )
 
 # ==========================================
-# VISTA 2: TALENT WORKSPACE
+# VISTA 2: TALENT WORKSPACE (Consulente IT)
 # ==========================================
 elif ruolo_utente == "Talent Workspace":
     if not st.session_state.it_logged_in:
@@ -774,7 +863,7 @@ elif ruolo_utente == "Talent Workspace":
                 st.caption("Nessun dato storico.")
 
 # ==========================================
-# VISTA 3: TALENT MANAGEMENT
+# VISTA 3: TALENT MANAGEMENT (Ex HR)
 # ==========================================
 elif ruolo_utente == "Talent Management":
     if not st.session_state.hr_logged_in:
@@ -921,7 +1010,12 @@ elif ruolo_utente == "Talent Management":
 
         elif pagina_hr == "Archivio Generale":
             st.markdown("<h1 class='gradient-title'>Ispezione Diretta Records</h1>", unsafe_allow_html=True)
-            st.dataframe(df_risorse, hide_index=True, use_container_width=True)
+            
+            df_view = df_risorse.copy()
+            df_view['Saturazione_%'] = df_view['ID'].apply(lambda x: get_saturazione(x, df_allocazioni))
+            df_view['Assegnazioni'] = df_view['ID'].apply(lambda x: get_progetti_risorsa(x, df_allocazioni, df_commesse))
+            
+            st.dataframe(df_view, hide_index=True, use_container_width=True)
 
 # ==========================================
 # 4. COMPONENTE COPILOT AI (WIDGET INFERIORE)
