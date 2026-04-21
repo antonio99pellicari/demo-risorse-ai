@@ -176,7 +176,6 @@ if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
 if "hr_logged_in" not in st.session_state: st.session_state.hr_logged_in = False
 if "current_it_user" not in st.session_state: st.session_state.current_it_user = None
 
-
 # ==========================================
 # 2. MOTORI AI E COPILOT
 # ==========================================
@@ -336,7 +335,7 @@ df = st.session_state.df_risorse
 
 
 # ==========================================
-# VISTA 1: RESOURCE ALLOCATION ENGINE (Ex PM)
+# VISTA 1: RESOURCE ALLOCATION ENGINE
 # ==========================================
 if ruolo_utente == "Resource Allocation Engine":
     if not st.session_state.pm_logged_in:
@@ -352,7 +351,7 @@ if ruolo_utente == "Resource Allocation Engine":
                     st.error("Rifiutato. Credenziali non conformi.")
     else:
         num_req_alloc = len(st.session_state.pending_allocations)
-        tab_allocazioni = f"Gestione Allocazioni ({num_req_alloc})" if num_req_alloc > 0 else "Gestione Allocazioni"
+        tab_allocazioni = f"Allocazione risorse ({num_req_alloc})" if num_req_alloc > 0 else "Allocazione risorse"
         
         pagina_pm = st.sidebar.radio("MODULI OPERATIVI", [
             "Homepage", 
@@ -368,7 +367,7 @@ if ruolo_utente == "Resource Allocation Engine":
             st.rerun()
 
         # ----------------------------------------
-        # SOTTO-VISTA: Homepage (Ex Control Center)
+        # SOTTO-VISTA: Homepage 
         # ----------------------------------------
         if pagina_pm == "Homepage":
             st.markdown("<h1 class='gradient-title'>Homepage Manageriale</h1>", unsafe_allow_html=True)
@@ -397,34 +396,33 @@ if ruolo_utente == "Resource Allocation Engine":
             st.plotly_chart(applica_tema_plotly(fig_fin), use_container_width=True)
 
         # ----------------------------------------
-        # SOTTO-VISTA: Allocation Advisor (Ex AI Scoping)
+        # SOTTO-VISTA: Allocation Advisor
         # ----------------------------------------
         elif pagina_pm == "Allocation Advisor":
             st.markdown("<h1 class='gradient-title'>Allocation Advisor</h1>", unsafe_allow_html=True)
             st.caption("Modulo Analisi: Rules Engine Deterministico (Upgrade LLM Semantico in roadmap)")
             
+            # Gestione Persistenza
+            if "saved_testo_brief" not in st.session_state:
+                st.session_state.saved_testo_brief = ""
+            
             def imposta_brief_demo():
-                st.session_state.testo_brief = "Il client richiede una nuova architettura web. Stack Frontend in React e TypeScript. Stack Backend in Node.js. Database SQL su Cloud AWS."
+                st.session_state.saved_testo_brief = "Il client richiede una nuova architettura web. Stack Frontend in React e TypeScript. Stack Backend in Node.js. Database SQL su Cloud AWS."
             
             st.button("Inizializza Query Demo", on_click=imposta_brief_demo)
             
-            if "testo_brief" not in st.session_state:
-                st.session_state.testo_brief = ""
-                
-            testo_da_analizzare = st.text_area("Input Parametri Architetturali (Brief Tecnico):", key="testo_brief", height=100)
+            testo_da_analizzare = st.text_area("Input Parametri Architetturali (Brief Tecnico):", value=st.session_state.saved_testo_brief, height=100)
+            st.session_state.saved_testo_brief = testo_da_analizzare
 
             if st.button("Elabora WBS e Copertura Target", type="primary"):
                 fasi, skill_richieste = analizza_testo(testo_da_analizzare)
                 
                 if not fasi:
                     st.warning("Errore di Parsing: Nessun framework riconosciuto. Inserire standard di mercato (es. React, Python, AWS).")
-                    if "wbs_data" in st.session_state: 
-                        del st.session_state.wbs_data
-                    if "team_data" in st.session_state: 
-                        del st.session_state.team_data
+                    if "wbs_data" in st.session_state: del st.session_state.wbs_data
+                    if "team_data" in st.session_state: del st.session_state.team_data
                 else:
                     st.session_state.wbs_data = pd.DataFrame(fasi)
-                    
                     team_proposto = []
                     for skill in skill_richieste:
                         candidati = df[df['Occupazione_%'] < 100]
@@ -442,22 +440,18 @@ if ruolo_utente == "Resource Allocation Engine":
                 tab_wbs, tab_team = st.tabs(["Work Breakdown Structure", "Assessment Economico Team"])
                 
                 with tab_wbs:
-                    # Storicizza le modifiche dell'editor nella session_state
-                    edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", key="wbs_editor", use_container_width=True)
+                    edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", use_container_width=True)
                     st.session_state.wbs_data = edited_wbs
                 
                 with tab_team:
-                    # Rende le colonne Costo_gg e Margine_% modificabili con step incrementali
                     edited_team = st.data_editor(
                         st.session_state.team_data, 
-                        key="team_editor", 
                         use_container_width=True,
                         column_config={
                             "Costo_gg": st.column_config.NumberColumn("Costo_gg", step=50),
                             "Margine_%": st.column_config.NumberColumn("Margine_%", step=5)
                         }
                     )
-                    # Aggiorna session state per mantenere la memoria delle operazioni
                     st.session_state.team_data = edited_team
                     
                     costo_totale_progetto = 0
@@ -477,7 +471,7 @@ if ruolo_utente == "Resource Allocation Engine":
                     c_fin3.markdown(f"<div class='kpi-card green'><h3>Margine Utile Atteso</h3><h2>€ {proposta_commerciale - costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
 
         # ----------------------------------------
-        # SOTTO-VISTA: Gestione Allocazioni
+        # SOTTO-VISTA: Allocazione Risorse
         # ----------------------------------------
         elif pagina_pm == tab_allocazioni:
             st.markdown("<h1 class='gradient-title'>Allocazione risorse</h1>", unsafe_allow_html=True)
@@ -532,20 +526,24 @@ if ruolo_utente == "Resource Allocation Engine":
             st.write("Verifica degli incroci di agenda su orizzonte esteso.")
             
             c_f1, c_f2 = st.columns(2)
-            filtro_sen = c_f1.multiselect("Filtraggio per Livello:", ["Junior", "Mid", "Senior"], default=["Senior", "Mid", "Junior"])
             
-            if filtro_sen:
-                df_filtered = df[df['Seniority'].isin(filtro_sen)]
-            else:
-                df_filtered = df
+            # Memoria filtro Sen
+            filtro_sen = c_f1.multiselect("Filtraggio per Livello:", ["Junior", "Mid", "Senior"], default=st.session_state.get('saved_team_filtro', ["Senior", "Mid", "Junior"]))
+            st.session_state.saved_team_filtro = filtro_sen
+            
+            df_filtered = df[df['Seniority'].isin(filtro_sen)] if filtro_sen else df
                 
-            team_selezionato = c_f2.multiselect("Target Risorse da Valutare:", df_filtered['Nome'].tolist())
+            # Memoria filtro Target e validazione opzioni disponibili
+            valid_team = [x for x in st.session_state.get('saved_team_selezionato', []) if x in df_filtered['Nome'].tolist()]
+            team_selezionato = c_f2.multiselect("Target Risorse da Valutare:", df_filtered['Nome'].tolist(), default=valid_team)
+            st.session_state.saved_team_selezionato = team_selezionato
             
             if "team_cal_idx" not in st.session_state: 
                 st.session_state.team_cal_idx = 0
                 
-            oggi = datetime.today()
-            orizzonte = st.date_input("Configurazione Orizzonte Analitico:", value=(oggi, oggi + timedelta(days=180)))
+            # Memoria Orizzonte
+            orizzonte = st.date_input("Configurazione Orizzonte Analitico:", value=st.session_state.get('saved_team_orizzonte', (datetime.today(), datetime.today() + timedelta(days=180))))
+            st.session_state.saved_team_orizzonte = orizzonte
             
             if team_selezionato and len(orizzonte) == 2:
                 start_date, end_date = orizzonte
@@ -639,7 +637,14 @@ if ruolo_utente == "Resource Allocation Engine":
         elif pagina_pm == "Indagine Profili":
             st.markdown("<h1 class='gradient-title'>Ispezione Dettaglio Risorsa</h1>", unsafe_allow_html=True)
             
-            nome_ricerca = st.selectbox("Puntatore Identificativo:", df['Nome'].tolist())
+            # Memoria Selettore Anagrafica
+            options_nomi = df['Nome'].tolist()
+            saved_nome = st.session_state.get('saved_indagine_nome')
+            idx_nome = options_nomi.index(saved_nome) if saved_nome in options_nomi else 0
+            
+            nome_ricerca = st.selectbox("Puntatore Identificativo:", options_nomi, index=idx_nome)
+            st.session_state.saved_indagine_nome = nome_ricerca
+            
             if nome_ricerca:
                 dati_ricerca = df[df['Nome'] == nome_ricerca].iloc[0]
                 prog_att = estrai_progetto_attuale(dati_ricerca)
@@ -647,13 +652,14 @@ if ruolo_utente == "Resource Allocation Engine":
                 c1, c2, c3 = st.columns(3)
                 c1.markdown(f"<div class='kpi-card blue'><h3>Livello Classificazione</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Ruolo']}</p></div>", unsafe_allow_html=True)
                 c2.markdown(f"<div class='kpi-card orange'><h3>Matrice Competenze</h3><p style='font-size:20px; font-weight:700; color:#FFF; margin:0;'>{dati_ricerca['Skill']}</p></div>", unsafe_allow_html=True)
-                # Reso esplicito il nome del cliente
                 c3.markdown(f"<div class='kpi-card green'><h3>Stato Rete Attuale</h3><p style='font-size:16px; font-weight:700; color:#FFF; margin:0;'>Saturazione {dati_ricerca['Occupazione_%']}%<br>Cliente/Progetto: <span style='color:#10B981;'>{prog_att}</span></p></div>", unsafe_allow_html=True)
                 
                 st.markdown("---")
                 st.subheader("Rappresentazione Vettoriale Agenda (Zoom-in)")
                 
-                date_range = st.date_input("Range di Verifica:", value=(datetime.today(), datetime.today() + timedelta(days=180)))
+                # Memoria Range Date
+                date_range = st.date_input("Range di Verifica:", value=st.session_state.get('saved_indagine_date', (datetime.today(), datetime.today() + timedelta(days=180))))
+                st.session_state.saved_indagine_date = date_range
                 
                 if len(date_range) == 2:
                     start_date, end_date = date_range
@@ -736,7 +742,7 @@ if ruolo_utente == "Resource Allocation Engine":
             )
 
 # ==========================================
-# VISTA 2: TALENT WORKSPACE (Ex Consulente IT)
+# VISTA 2: TALENT WORKSPACE
 # ==========================================
 elif ruolo_utente == "Talent Workspace":
     if not st.session_state.it_logged_in:
@@ -753,7 +759,7 @@ elif ruolo_utente == "Talent Workspace":
                     st.error("Handshake fallito. Codice non autorizzato.")
     else:
         st.markdown(f"<h1 class='gradient-title'>Area Operativa: {st.session_state.current_it_user}</h1>", unsafe_allow_html=True)
-        if st.button("Logout"):
+        if st.button("LOGOUT"):
             st.session_state.it_logged_in = False
             st.rerun()
             
@@ -781,7 +787,7 @@ elif ruolo_utente == "Talent Workspace":
                 progetto_req = st.text_input("Codice Cliente / Progetto Target")
                 disp_req = st.slider("Fattore di Carico Previsto (%)", 25, 100, 50, step=25)
                 date_req = st.date_input("Timeline Stimata", value=(datetime.today(), datetime.today() + timedelta(days=30)))
-                if st.form_submit_button("Invia Richiesta"):
+                if st.form_submit_button("INVIA RICHIESTA"):
                     if len(date_req) == 2:
                         st.session_state.pending_allocations.append({
                             "ID": dati_utente['ID'], "Nome": dati_utente['Nome'], 
@@ -794,7 +800,7 @@ elif ruolo_utente == "Talent Workspace":
             st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
-# VISTA 3: TALENT MANAGEMENT (Ex Human Resources)
+# VISTA 3: TALENT MANAGEMENT
 # ==========================================
 elif ruolo_utente == "Talent Management":
     if not st.session_state.hr_logged_in:
@@ -822,7 +828,7 @@ elif ruolo_utente == "Talent Management":
             st.rerun()
 
         # ----------------------------------------
-        # SOTTO-VISTA: Homepage (Ex HR Analytics)
+        # SOTTO-VISTA: Homepage
         # ----------------------------------------
         if pagina_hr == "Homepage":
             st.markdown("<h1 class='gradient-title'>Metriche Globali Risorse</h1>", unsafe_allow_html=True)
@@ -839,7 +845,6 @@ elif ruolo_utente == "Talent Management":
                 df_sen = df['Seniority'].value_counts().reset_index()
                 df_sen.columns = ['Seniority', 'Conteggio']
                 fig1 = px.pie(df_sen, values='Conteggio', names='Seniority', hole=0.4, color_discrete_sequence=px.colors.sequential.Tealgrn)
-                # Rimozione Legenda
                 fig1 = applica_tema_plotly(fig1)
                 fig1.update_layout(showlegend=False)
                 st.plotly_chart(fig1, use_container_width=True)
@@ -847,13 +852,17 @@ elif ruolo_utente == "Talent Management":
             with col_chart2:
                 st.subheader("Distribuzione Assorbimento per Ruoli")
                 aree_disponibili = ["Cluster Globale"] + sorted(list(df['Macro_Area'].unique()))
-                area_selezionata = st.selectbox("Filtro di Contesto:", aree_disponibili)
+                
+                # Memoria Filtro Area
+                saved_area = st.session_state.get('saved_hr_area', "Cluster Globale")
+                idx_area = aree_disponibili.index(saved_area) if saved_area in aree_disponibili else 0
+                area_selezionata = st.selectbox("Filtro di Contesto:", aree_disponibili, index=idx_area)
+                st.session_state.saved_hr_area = area_selezionata
                 
                 df_ruoli = df if area_selezionata == "Cluster Globale" else df[df['Macro_Area'] == area_selezionata]
                 df_ruoli = df_ruoli['Ruolo'].str.replace('Senior ', '').str.replace('Mid ', '').str.replace('Junior ', '').value_counts().reset_index()
                 df_ruoli.columns = ['Ruolo', 'Conteggio']
                 fig2 = px.bar(df_ruoli, x='Ruolo', y='Conteggio', color='Ruolo', color_discrete_sequence=px.colors.sequential.Blues_r)
-                # Rimozione Legenda
                 fig2 = applica_tema_plotly(fig2)
                 fig2.update_layout(showlegend=False)
                 st.plotly_chart(fig2, use_container_width=True)
@@ -902,7 +911,14 @@ elif ruolo_utente == "Talent Management":
         elif pagina_hr == "Manutenzione Inquadramenti":
             st.markdown("<h1 class='gradient-title'>Upgrade Livelli e Manutenzione</h1>", unsafe_allow_html=True)
             
-            nome_ricerca = st.selectbox("Record Input (Lookup):", df['Nome'].tolist())
+            # Memoria Selettore Anagrafica HR
+            options_nomi = df['Nome'].tolist()
+            saved_hr_nome = st.session_state.get('saved_hr_manu_nome')
+            idx_hr_nome = options_nomi.index(saved_hr_nome) if saved_hr_nome in options_nomi else 0
+            
+            nome_ricerca = st.selectbox("Record Input (Lookup):", options_nomi, index=idx_hr_nome)
+            st.session_state.saved_hr_manu_nome = nome_ricerca
+            
             if nome_ricerca:
                 idx = df.index[df['Nome'] == nome_ricerca].tolist()[0]
                 dati_attuali = df.iloc[idx]
@@ -991,7 +1007,6 @@ elif ruolo_utente == "Talent Management":
 # 4. COMPONENTE COPILOT AI (WIDGET INFERIORE)
 # ==========================================
 if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
-    # Spaziatura e linea divisoria
     st.sidebar.markdown("<br><br><br><hr style='border-color: rgba(255,255,255,0.05);'>", unsafe_allow_html=True)
     
     with st.sidebar.popover("Terminale Copilot AI", use_container_width=True):
