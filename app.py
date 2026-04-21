@@ -68,6 +68,17 @@ st.markdown("""
     .kpi-card h3 { color: #8B949E; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 0; margin-bottom: 8px;}
     .kpi-card h2 { color: #F8F9FA; font-size: 2rem; font-weight: 700; margin: 0; letter-spacing: -0.5px;}
     
+    /* Box Alert Motore Coerenza */
+    .alert-box {
+        padding: 15px; 
+        border-radius: 8px; 
+        margin-bottom: 10px; 
+        border-left: 4px solid; 
+        background: rgba(30,33,39,0.8);
+    }
+    .alert-red { border-color: #EF4444; color: #FCA5A5; }
+    .alert-orange { border-color: #F59E0B; color: #FCD34D; }
+    
     .stTabs [data-baseweb="tab"] {
         font-size: 1rem;
         font-weight: 600;
@@ -109,8 +120,8 @@ def genera_database():
         ("Project Manager", ["Agile", "Scrum", "Jira"], "Risk/Management")
     ]
     
-    clienti_italiani = ["Enel", "TIM", "Poste", "Intesa", "Unicredit", "Ferrari", "Eni", "Leonardo", "Ferrovie", "Pirelli"]
-    tipi_progetto = ["Piattaforma e-commerce", "App Mobile", "Gestionale", "Dashboard IoT", "Sistema Pagamenti", "Migrazione Cloud"]
+    clienti_italiani = ["Enel", "TIM", "Poste", "Intesa", "Unicredit", "Ferrari", "Eni", "Leonardo"]
+    tipi_progetto = ["Piattaforma e-commerce", "App Mobile", "Gestionale", "Dashboard IoT", "Migrazione Cloud"]
     
     db = []
     for i, nome in enumerate(nomi_completi):
@@ -118,7 +129,10 @@ def genera_database():
         skills = random.sample(skills_possibili, k=random.randint(2, len(skills_possibili)))
         seniority = random.choice(["Junior", "Mid", "Senior"])
         costo_base = {"Junior": 150, "Mid": 250, "Senior": 350}[seniority]
-        occupazione = random.choice([0, 0, 50, 100])
+        
+        # Generiamo alcune over-allocations volute (150%) per mostrare l'alert
+        occupazione = random.choice([0, 0, 50, 100, 150]) 
+        
         giorni_offset = random.randint(5, 30) if occupazione > 0 else 0
         disp_dal = (datetime.now() + timedelta(days=giorni_offset)).strftime("%Y-%m-%d")
         
@@ -146,14 +160,28 @@ def genera_database():
         })
     return pd.DataFrame(db)
 
+@st.cache_data
+def genera_commesse():
+    """Genera un database mockato per le commesse e i budget"""
+    return pd.DataFrame([
+        {"ID_Commessa": "PRJ-001", "Cliente": "Enel", "Nome": "Migrazione Cloud", "Budget": 150000, "Costo_Attuale": 165000, "Stato": "Attivo", "Skill_Richieste": "AWS, DevOps"},
+        {"ID_Commessa": "PRJ-002", "Cliente": "TIM", "Nome": "App Mobile", "Budget": 80000, "Costo_Attuale": 45000, "Stato": "Attivo", "Skill_Richieste": "React, TypeScript"},
+        {"ID_Commessa": "PRJ-003", "Cliente": "Intesa", "Nome": "Dashboard IoT", "Budget": 120000, "Costo_Attuale": 115000, "Stato": "Attivo", "Skill_Richieste": "Python, SQL"},
+        {"ID_Commessa": "PRJ-004", "Cliente": "Ferrari", "Nome": "Piattaforma e-commerce", "Budget": 95000, "Costo_Attuale": 20000, "Stato": "In Avvio", "Skill_Richieste": "Node.js, React"}
+    ])
+
 def estrai_progetto_attuale(row):
+    """Estrae il progetto corrente se la risorsa è occupata"""
     if row.get('Occupazione_%', 0) > 0 and isinstance(row.get('Esperienze', []), list) and len(row['Esperienze']) > 0:
         ult = row['Esperienze'][-1]
         return f"{ult.get('Cliente', 'N/D')} - {ult.get('Progetto', 'N/D')}"
     return "Disponibile (Bench)"
 
+# --- INIZIALIZZAZIONE SESSION STATE ---
 if "df_risorse" not in st.session_state: 
     st.session_state.df_risorse = genera_database()
+if "df_commesse" not in st.session_state: 
+    st.session_state.df_commesse = genera_commesse()
 if "pending_approvals" not in st.session_state: 
     st.session_state.pending_approvals = []
 if "pending_allocations" not in st.session_state: 
@@ -171,15 +199,20 @@ if "bot_action" not in st.session_state:
 if "groq_api_key" not in st.session_state: 
     st.session_state.groq_api_key = "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"
 
-if "pm_logged_in" not in st.session_state: st.session_state.pm_logged_in = False
-if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
-if "hr_logged_in" not in st.session_state: st.session_state.hr_logged_in = False
-if "current_it_user" not in st.session_state: st.session_state.current_it_user = None
+if "pm_logged_in" not in st.session_state: 
+    st.session_state.pm_logged_in = False
+if "it_logged_in" not in st.session_state: 
+    st.session_state.it_logged_in = False
+if "hr_logged_in" not in st.session_state: 
+    st.session_state.hr_logged_in = False
+if "current_it_user" not in st.session_state: 
+    st.session_state.current_it_user = None
 
 # ==========================================
 # 2. MOTORI AI E COPILOT
 # ==========================================
 def analizza_testo(testo):
+    """Motore Deterministico (Rules Engine MVP) per lo Scoping"""
     testo_lower = testo.lower()
     competenze_trovate = []
     regole = {
@@ -198,6 +231,7 @@ def analizza_testo(testo):
     return fasi, competenze_trovate
 
 def fallback_simulatore_chatbot(prompt, df):
+    """Simulatore Regex se non c'è l'API Key Groq"""
     prompt_l = prompt.lower()
     nome_trovato = None
     for nome in df['Nome']:
@@ -224,6 +258,7 @@ def fallback_simulatore_chatbot(prompt, df):
     return None, "Comando di sistema non riconosciuto. Sintassi non valida."
 
 def parse_chatbot_intent_llm(prompt, df, api_key):
+    """Vero LLM tramite Groq per il Copilot Chatbot (Versione Antiproiettile)"""
     if not api_key:
         return fallback_simulatore_chatbot(prompt, df)
         
@@ -241,7 +276,7 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     2. Se l'utente chiede di PROMUOVERE/AVANZARE DI LIVELLO:
     {{"azione": "promuovi", "nome": "Nome e Cognome", "nuova_seniority": "Junior/Mid/Senior", "messaggio_riepilogo": "Iter di promozione preparato..."}}
     
-    3. Se l'utente saluta o fa richieste fuori contesto:
+    3. Se l'utente saluta o fa richieste fuori contesto (es. "ciao come stai"):
     {{"azione": "errore", "messaggio_riepilogo": "Copilot di sistema online. Funzionalità attive: Allocazione su commessa, Variazione livelli di seniority."}}
     """
     
@@ -317,6 +352,7 @@ def esegui_azione_chatbot(dati_finali):
 # ==========================================
 # 3. SIDEBAR E NAVIGAZIONE (CORPORATE STYLE)
 # ==========================================
+# Logo Aziendale
 st.sidebar.markdown("<div style='font-size: 26px; font-weight: 800; letter-spacing: -1px; color: #F8F9FA; margin-bottom: 30px; margin-top: -20px;'>Resource<span style='color: #3B82F6;'>AI</span></div>", unsafe_allow_html=True)
 
 ruolo_utente = st.sidebar.selectbox("PROFILO DI ACCESSO", ["Resource Allocation Engine", "Talent Management", "Talent Workspace"])
@@ -332,10 +368,10 @@ if ruolo_utente != "Talent Management":
     st.session_state.hr_logged_in = False
 
 df = st.session_state.df_risorse
-
+df_commesse = st.session_state.df_commesse
 
 # ==========================================
-# VISTA 1: RESOURCE ALLOCATION ENGINE
+# VISTA 1: RESOURCE ALLOCATION ENGINE (Ex PM)
 # ==========================================
 if ruolo_utente == "Resource Allocation Engine":
     if not st.session_state.pm_logged_in:
@@ -358,6 +394,7 @@ if ruolo_utente == "Resource Allocation Engine":
             "Allocation Advisor",
             tab_allocazioni,
             "Componi il tuo team",
+            "Portfolio Commesse",
             "Indagine Profili", 
             "Master Data Risorse"
         ])
@@ -367,10 +404,34 @@ if ruolo_utente == "Resource Allocation Engine":
             st.rerun()
 
         # ----------------------------------------
-        # SOTTO-VISTA: Homepage 
+        # SOTTO-VISTA: Homepage (Con Consistency Engine)
         # ----------------------------------------
         if pagina_pm == "Homepage":
             st.markdown("<h1 class='gradient-title'>Homepage Manageriale</h1>", unsafe_allow_html=True)
+            
+            # CONSISTENCY ENGINE (Motore di Coerenza e Alerting)
+            st.subheader("⚠️ Motore di Coerenza: Alert e Incoerenze")
+            
+            overbooked = df[df['Occupazione_%'] > 100]
+            commesse_loss = df_commesse[df_commesse['Costo_Attuale'] > df_commesse['Budget']]
+            
+            has_alerts = False
+            
+            if not overbooked.empty:
+                has_alerts = True
+                for _, r in overbooked.iterrows():
+                    st.markdown(f"<div class='alert-box alert-red'><b>[Over-Allocation Critica]</b> Il record {r['Nome']} ({r['Ruolo']}) risulta allocato al {r['Occupazione_%']}%. Necessario bilanciamento immediato.</div>", unsafe_allow_html=True)
+            
+            if not commesse_loss.empty:
+                has_alerts = True
+                for _, c in commesse_loss.iterrows():
+                    st.markdown(f"<div class='alert-box alert-orange'><b>[Erosione Margine]</b> La commessa {c['ID_Commessa']} ({c['Nome']}) ha superato il budget stimato. Costo: €{c['Costo_Attuale']} vs Budget: €{c['Budget']}.</div>", unsafe_allow_html=True)
+            
+            if not has_alerts:
+                st.success("Nessun conflitto logico rilevato nei dati di Master Data. Condizioni ottimali.")
+            
+            st.markdown("---")
+            
             if num_req_alloc > 0:
                 st.warning(f"Avviso di Sistema: {num_req_alloc} richieste di allocazione in coda di attesa.")
             
@@ -440,12 +501,15 @@ if ruolo_utente == "Resource Allocation Engine":
                 tab_wbs, tab_team = st.tabs(["Work Breakdown Structure", "Assessment Economico Team"])
                 
                 with tab_wbs:
-                    edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", use_container_width=True)
+                    # Storicizza modifiche editor WBS
+                    edited_wbs = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", key="wbs_editor", use_container_width=True)
                     st.session_state.wbs_data = edited_wbs
                 
                 with tab_team:
+                    # Storicizza modifiche editor Team (con step cost=50 e margin=5)
                     edited_team = st.data_editor(
                         st.session_state.team_data, 
+                        key="team_editor", 
                         use_container_width=True,
                         column_config={
                             "Costo_gg": st.column_config.NumberColumn("Costo_gg", step=50),
@@ -464,6 +528,7 @@ if ruolo_utente == "Resource Allocation Engine":
                             costo_totale_progetto += costo_fase
                             proposta_commerciale += costo_fase * (1 + (membro.iloc[0]['Margine_%'] / 100))
                     
+                    # Rimosso il "###"
                     st.markdown("<br><div style='font-size: 1.6rem; font-weight: 700; color: #F8F9FA; margin-bottom: 15px;'>Previsione Finanziaria di Commessa</div>", unsafe_allow_html=True)
                     c_fin1, c_fin2, c_fin3 = st.columns(3)
                     c_fin1.markdown(f"<div class='kpi-card orange'><h3>Spesa Operativa (OPEX)</h3><h2>€ {costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
@@ -471,7 +536,7 @@ if ruolo_utente == "Resource Allocation Engine":
                     c_fin3.markdown(f"<div class='kpi-card green'><h3>Margine Utile Atteso</h3><h2>€ {proposta_commerciale - costo_totale_progetto:,.0f}</h2></div>", unsafe_allow_html=True)
 
         # ----------------------------------------
-        # SOTTO-VISTA: Allocazione Risorse
+        # SOTTO-VISTA: Allocazione risorse
         # ----------------------------------------
         elif pagina_pm == tab_allocazioni:
             st.markdown("<h1 class='gradient-title'>Allocazione risorse</h1>", unsafe_allow_html=True)
@@ -632,6 +697,26 @@ if ruolo_utente == "Resource Allocation Engine":
                             st.markdown(html_cal, unsafe_allow_html=True)
 
         # ----------------------------------------
+        # SOTTO-VISTA: Portfolio Commesse
+        # ----------------------------------------
+        elif pagina_pm == "Portfolio Commesse":
+            st.markdown("<h1 class='gradient-title'>Salute Portfolio Commesse</h1>", unsafe_allow_html=True)
+            st.info("Incrocio Dati: Il sistema confronta il budget allocato del progetto con il costo reale delle risorse ad esso assegnate per evidenziare delta margin.")
+            
+            df_view_comm = df_commesse.copy()
+            df_view_comm['Delta Margin'] = df_view_comm['Budget'] - df_view_comm['Costo_Attuale']
+            
+            st.dataframe(
+                df_view_comm,
+                column_config={
+                    "Budget": st.column_config.NumberColumn("Budget Atteso", format="€ %d"),
+                    "Costo_Attuale": st.column_config.NumberColumn("Costo Consumato", format="€ %d"),
+                    "Delta Margin": st.column_config.NumberColumn("Delta Margin", format="€ %d")
+                },
+                hide_index=True, use_container_width=True
+            )
+
+        # ----------------------------------------
         # SOTTO-VISTA: Indagine Profili
         # ----------------------------------------
         elif pagina_pm == "Indagine Profili":
@@ -742,7 +827,7 @@ if ruolo_utente == "Resource Allocation Engine":
             )
 
 # ==========================================
-# VISTA 2: TALENT WORKSPACE
+# VISTA 2: TALENT WORKSPACE (Ex Consulente IT)
 # ==========================================
 elif ruolo_utente == "Talent Workspace":
     if not st.session_state.it_logged_in:
@@ -800,7 +885,7 @@ elif ruolo_utente == "Talent Workspace":
             st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
-# VISTA 3: TALENT MANAGEMENT
+# VISTA 3: TALENT MANAGEMENT (Ex Human Resources)
 # ==========================================
 elif ruolo_utente == "Talent Management":
     if not st.session_state.hr_logged_in:
@@ -828,7 +913,7 @@ elif ruolo_utente == "Talent Management":
             st.rerun()
 
         # ----------------------------------------
-        # SOTTO-VISTA: Homepage
+        # SOTTO-VISTA: Homepage (Ex HR Analytics)
         # ----------------------------------------
         if pagina_hr == "Homepage":
             st.markdown("<h1 class='gradient-title'>Metriche Globali Risorse</h1>", unsafe_allow_html=True)
@@ -845,6 +930,7 @@ elif ruolo_utente == "Talent Management":
                 df_sen = df['Seniority'].value_counts().reset_index()
                 df_sen.columns = ['Seniority', 'Conteggio']
                 fig1 = px.pie(df_sen, values='Conteggio', names='Seniority', hole=0.4, color_discrete_sequence=px.colors.sequential.Tealgrn)
+                # Rimozione Legenda
                 fig1 = applica_tema_plotly(fig1)
                 fig1.update_layout(showlegend=False)
                 st.plotly_chart(fig1, use_container_width=True)
@@ -863,6 +949,7 @@ elif ruolo_utente == "Talent Management":
                 df_ruoli = df_ruoli['Ruolo'].str.replace('Senior ', '').str.replace('Mid ', '').str.replace('Junior ', '').value_counts().reset_index()
                 df_ruoli.columns = ['Ruolo', 'Conteggio']
                 fig2 = px.bar(df_ruoli, x='Ruolo', y='Conteggio', color='Ruolo', color_discrete_sequence=px.colors.sequential.Blues_r)
+                # Rimozione Legenda
                 fig2 = applica_tema_plotly(fig2)
                 fig2.update_layout(showlegend=False)
                 st.plotly_chart(fig2, use_container_width=True)
@@ -1007,6 +1094,7 @@ elif ruolo_utente == "Talent Management":
 # 4. COMPONENTE COPILOT AI (WIDGET INFERIORE)
 # ==========================================
 if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
+    # Spaziatura e linea divisoria
     st.sidebar.markdown("<br><br><br><hr style='border-color: rgba(255,255,255,0.05);'>", unsafe_allow_html=True)
     
     with st.sidebar.popover("Terminale Copilot AI", use_container_width=True):
