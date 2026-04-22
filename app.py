@@ -44,7 +44,7 @@ st.markdown("""
         letter-spacing: -0.5px;
     }
     
-    /* Gestione dinamica dei colori per Light/Dark mode */
+    /* Gestione dinamica colori Light/Dark */
     :root {
         --kpi-bg: rgba(30,33,39,0.05);
         --kpi-border: rgba(128,128,128,0.2);
@@ -71,9 +71,7 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    .kpi-card-shadow {
-        box-shadow: 0 8px 30px rgba(0,0,0,0.15) !important;
-    }
+    .kpi-card-shadow { box-shadow: 0 8px 30px rgba(0,0,0,0.15) !important; }
     
     .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; }
     .kpi-card.blue::before { background: #3B82F6; }
@@ -85,67 +83,48 @@ st.markdown("""
     .kpi-card h2 { color: var(--kpi-text-main); font-size: 2rem; font-weight: 700; margin: 0; letter-spacing: -0.5px;}
     
     .alert-box {
-        padding: 15px; 
-        border-radius: 8px; 
-        margin-bottom: 10px; 
-        border-left: 4px solid; 
-        background: rgba(128,128,128,0.1);
-        color: var(--text-color);
+        padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid; background: rgba(128,128,128,0.1); color: var(--text-color);
     }
     .alert-red { border-color: #EF4444; }
     .alert-orange { border-color: #F59E0B; }
     
-    .stTabs [data-baseweb="tab"] {
-        font-size: 1rem;
-        font-weight: 600;
-        padding: 10px 20px;
+    .stTabs [data-baseweb="tab"] { font-size: 1rem; font-weight: 600; padding: 10px 20px; }
+
+    /* --- MENU SCALARE NEON (Nascondiamo il pallino del radio e illuminiamo il testo) --- */
+    [data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {
+        display: none !important;
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] label {
+        padding: 10px 14px;
+        margin-bottom: 2px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] label:hover {
+        background: rgba(255,255,255,0.05);
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] label p {
+        font-size: 1.05rem;
+        transition: all 0.3s ease;
+    }
+    /* Selezionato NEON */
+    [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
+        background: rgba(59, 130, 246, 0.12) !important;
+        box-shadow: inset 4px 0 0 #3B82F6, 0 0 15px rgba(59,130,246,0.2) !important;
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) p {
+        font-weight: 800 !important;
+        color: #F8F9FA !important;
+        text-shadow: 0 0 10px rgba(59,130,246,0.6), 0 0 20px rgba(59,130,246,0.3) !important;
     }
 
-    .scheduling-container {
-        overflow-x: auto;
-        padding-bottom: 15px;
-        margin-top: 20px;
-    }
-    .scheduling-row {
-        display: flex;
-        align-items: center;
-        margin-bottom: 4px;
-        flex-wrap: nowrap;
-    }
-    .scheduling-header {
-        font-weight: 700;
-        font-size: 11px;
-        color: #8B949E;
-        text-align: center;
-        min-width: 35px;
-    }
-    .scheduling-name {
-        min-width: 180px;
-        max-width: 180px;
-        font-weight: 600;
-        font-size: 14px;
-        position: sticky;
-        left: 0;
-        background-color: var(--background-color);
-        z-index: 2;
-        padding-right: 15px;
-        color: var(--text-color);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .scheduling-cell {
-        min-width: 35px;
-        height: 35px;
-        margin-right: 2px;
-        border-radius: 4px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        color: white;
-        font-weight: 600;
-    }
+    /* CSS Scheduling Assistant */
+    .scheduling-container { overflow-x: auto; padding-bottom: 15px; margin-top: 20px; }
+    .scheduling-row { display: flex; align-items: center; margin-bottom: 4px; flex-wrap: nowrap; }
+    .scheduling-header { font-weight: 700; font-size: 11px; color: #8B949E; text-align: center; min-width: 35px; }
+    .scheduling-name { min-width: 180px; max-width: 180px; font-weight: 600; font-size: 14px; position: sticky; left: 0; background-color: var(--background-color); z-index: 2; padding-right: 15px; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+    .scheduling-cell { min-width: 35px; height: 35px; margin-right: 2px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 600; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -161,19 +140,13 @@ def formatta_data(data_str):
         else: return data_str.strftime("%d-%m-%Y")
     except: return data_str
 
-def get_circled_number(n):
+def get_badge(n):
     if n <= 0: return ""
-    circled = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"]
-    if n <= 10: return f" {circled[n-1]}"
-    return f" ({n})"
+    badges = ["❶","❷","❸","❹","❺","❻","❼","❽","❾","❿"]
+    return f" <span style='color:#EF4444;'>{badges[n-1]}</span>" if n <= 10 else f" <span style='color:#EF4444;'>🔴</span>"
 
 def applica_tema_plotly(fig):
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)', 
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="Outfit", color="#8B949E"), 
-        margin=dict(l=20, r=20, t=40, b=20)
-    )
+    fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font=dict(family="Outfit", color="#8B949E"), margin=dict(l=20, r=20, t=40, b=20))
     return fig
 
 # --- STRUTTURA DATI RELAZIONALE ---
@@ -209,15 +182,9 @@ def genera_dati_strutturali():
         costo_base = {"Junior": 150, "Mid": 250, "Senior": 350}[seniority]
         
         db_risorse.append({
-            "ID": f"RES-{1000+i}",
-            "Nome": nome,
-            "Macro_Area": macro_area,
-            "Ruolo": f"{seniority} {ruolo}",
-            "Seniority": seniority,
-            "Skill": ", ".join(skills),
-            "Costo_Giorno": costo_base,
-            "Tariffa_Vendita": costo_base * 1.4,
-            "Disponibile_dal": (datetime.now() - timedelta(days=random.randint(0, 30))).strftime("%Y-%m-%d")
+            "ID": f"RES-{1000+i}", "Nome": nome, "Macro_Area": macro_area, "Ruolo": f"{seniority} {ruolo}",
+            "Seniority": seniority, "Skill": ", ".join(skills), "Costo_Giorno": costo_base,
+            "Tariffa_Vendita": costo_base * 1.4, "Disponibile_dal": (datetime.now() - timedelta(days=random.randint(0, 30))).strftime("%Y-%m-%d")
         })
     df_risorse = pd.DataFrame(db_risorse)
 
@@ -242,8 +209,7 @@ def genera_dati_strutturali():
                 allocazioni.append({"ID_Risorsa": id_risorsa, "ID_Commessa": c_id, "Impegno_%": perc})
                 giorni_spesi = random.randint(5, 45)
                 timesheet.append({
-                    "ID_Risorsa": id_risorsa, 
-                    "ID_Commessa": c_id,
+                    "ID_Risorsa": id_risorsa, "ID_Commessa": c_id,
                     "Data_Inizio_Progetto": (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
                     "Giornate_Spese": giorni_spesi
                 })
@@ -287,18 +253,17 @@ if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
 if "hr_logged_in" not in st.session_state: st.session_state.hr_logged_in = False
 if "current_it_user" not in st.session_state: st.session_state.current_it_user = None
 
-
 # ==========================================
 # 2. MOTORI AI E COPILOT
 # ==========================================
 def analizza_testo_llm(testo, api_key):
     if not api_key:
         testo_lower = testo.lower()
-        if "ciao" in testo_lower or "diga" in testo_lower or "torta" in testo_lower:
-            return [], [], "Testo non pertinente. Inserire un brief di progetto software valido."
+        if any(x in testo_lower for x in ["ciao", "diga", "torta", "mare", "sole"]):
+            return [], [], "Input non pertinente. Inserire un brief IT strutturato."
         
         competenze_trovate = []
-        regole = {"react": ("React", 15), "node": ("Node.js", 20), "python": ("Python", 18), "java": ("Java", 25), "aws": ("AWS", 10), "sql": ("SQL", 8), "typescript": ("TypeScript", 10)}
+        regole = {"react": ("React", 15), "node": ("Node.js", 20), "python": ("Python", 18), "java": ("Java", 25), "aws": ("AWS", 10), "sql": ("SQL", 8), "typescript": ("TypeScript", 10), "go": ("Go", 20), "kubernetes": ("Kubernetes", 15)}
         fasi = []
         for key, (skill, giorni) in regole.items():
             if key in testo_lower:
@@ -307,14 +272,14 @@ def analizza_testo_llm(testo, api_key):
         return fasi, competenze_trovate, None
     
     prompt = f"""
-    Sei un Allocation Advisor AI. Analizza il seguente brief architetturale per un progetto software/IT.
-    SE il brief è un saluto (es. "ciao"), una richiesta irrealistica (es. "costruisci una diga") o testo non pertinente all'IT, restituisci SOLO questo JSON esatto:
-    {{"errore": "Input non valido. Si prega di inserire un brief tecnologico pertinente."}}
+    Sei un Allocation Advisor AI per un gestionale IT.
+    ANALIZZA il seguente testo. SE non c'entra nulla con lo sviluppo software/IT (es. è un saluto "ciao", una ricetta, o ti chiede di costruire una diga), restituisci SOLO ED ESCLUSIVAMENTE questo JSON:
+    {{"errore": "Input non pertinente. Inserire un brief di progetto software valido."}}
     
-    ALTRIMENTI, estrai una Work Breakdown Structure (WBS) e restituisci SOLO un JSON valido con questa struttura, senza markdown:
+    ALTRIMENTI, estrai una Work Breakdown Structure (WBS) e restituisci SOLO un JSON valido (senza blocchi markdown) con questa struttura:
     {{
         "fasi": [
-            {{"Fase": "Nome fase", "Skill": "Tecnologia", "Giorni": 15}}
+            {{"Fase": "Nome fase tecnica", "Skill": "Tecnologia principale", "Giorni": 20}}
         ],
         "competenze": ["Tecnologia1", "Tecnologia2"]
     }}
@@ -334,31 +299,12 @@ def analizza_testo_llm(testo, api_key):
     except Exception as e:
         return [], [], f"Errore di comunicazione AI: {e}"
 
-def fallback_simulatore_chatbot(prompt, df):
-    prompt_l = prompt.lower()
-    nome_trovato = next((n for n in df['Nome'] if n.lower() in prompt_l), None)
-    if not nome_trovato: return None, "Identità risorsa non rilevata nel Master Data."
-    
-    if "alloca" in prompt_l or "assegna" in prompt_l:
-        perc_match = re.search(r'(\d+)%', prompt_l)
-        perc = int(perc_match.group(1)) if perc_match else 100
-        cliente = "PRJ-XXX"
-        match_cliente = re.search(r'(?:su|sul|sulla)\s+([a-zA-Z0-9_\-]+)', prompt_l.replace("progetto ", ""))
-        if match_cliente: cliente = match_cliente.group(1).upper()
-        desc = f"Preparazione allocazione per **{nome_trovato}** su {cliente} al {perc}%."
-        return {"type": "alloca", "nome": nome_trovato, "perc": perc, "cliente": cliente, "desc": desc}, None
-    if "promuovi" in prompt_l:
-        sen = "Senior" if "senior" in prompt_l else "Mid" if "mid" in prompt_l else "Junior"
-        return {"type": "promuovi", "nome": nome_trovato, "nuova_sen": sen, "desc": f"Transazione di upgrade a livello **{sen}** predisposta per **{nome_trovato}**."}, None
-    return None, "Comando non riconosciuto."
-
 def parse_chatbot_intent_llm(prompt, df, api_key):
-    if not api_key: return fallback_simulatore_chatbot(prompt, df)
     lista_nomi = ", ".join(df['Nome'].tolist())
     system_prompt = f"""Sei Smart Assistant. Rispondi SOLO in JSON senza testo aggiuntivo. Nomi: {lista_nomi}
     1. ALLOCARE: {{"azione": "alloca", "nome": "Nome Cognome", "percentuale": 50, "cliente": "ID_Commessa", "messaggio_riepilogo": "Allocazione..."}}
     2. PROMUOVERE: {{"azione": "promuovi", "nome": "Nome Cognome", "nuova_seniority": "Senior", "messaggio_riepilogo": "Upgrade..."}}
-    3. ALTRO: {{"azione": "errore", "messaggio_riepilogo": "Comandi non validi. Specificare se allocare o promuovere una risorsa."}}"""
+    3. ALTRO (Testo non valido/Saluti): {{"azione": "errore", "messaggio_riepilogo": "Comandi non validi. Specificare un'azione di allocazione o promozione per le risorse."}}"""
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -371,7 +317,7 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
         if dati.get("azione") == "alloca": return {"type": "alloca", "nome": dati.get("nome"), "perc": dati.get("percentuale", 100), "cliente": dati.get("cliente", "N/D"), "desc": dati.get("messaggio_riepilogo")}, None
         if dati.get("azione") == "promuovi": return {"type": "promuovi", "nome": dati.get("nome"), "nuova_sen": dati.get("nuova_seniority"), "desc": dati.get("messaggio_riepilogo")}, None
         return None, "Errore Parser LLM."
-    except Exception as e: return None, f"Errore AI: {str(e)}"
+    except Exception as e: return None, f"Errore AI: Inserire chiave API valida."
 
 def esegui_azione_chatbot(dati_finali):
     df_ris = st.session_state.df_risorse
@@ -417,15 +363,10 @@ if ruolo_utente == "Resource Allocation Engine":
     if not st.session_state.pm_logged_in:
         st.markdown("<h1 class='gradient-title'>Gateway Resource Allocation Engine</h1>", unsafe_allow_html=True)
         with st.form("login_pm_form"):
-            username = st.text_input("ID Utente")
-            password = st.text_input("Credenziale di Rete", type="password")
-            if st.form_submit_button("Esegui Login"):
-                if username == "admin" and password == "admin123":
-                    st.session_state.pm_logged_in = True; st.rerun()
-                else: 
-                    st.error("Credenziali non conformi.")
+            if st.form_submit_button("Esegui Login") and st.text_input("ID Utente")=="admin" and st.text_input("Credenziale", type="password")=="admin123":
+                st.session_state.pm_logged_in = True; st.rerun()
     else:
-        # Pre-calcolo Allarmi per Notifiche
+        # Pre-calcolo Allarmi per Notifiche (Pallini)
         sat_df = df_allocazioni.groupby('ID_Risorsa')['Impegno_%'].sum().reset_index() if not df_allocazioni.empty else pd.DataFrame()
         overbooked = sat_df[sat_df['Impegno_%'] > 100] if not sat_df.empty else pd.DataFrame()
         
@@ -438,35 +379,39 @@ if ruolo_utente == "Resource Allocation Engine":
             commesse_loss = analisi_budget[analisi_budget['Costo_Tot_Riga'] > analisi_budget['Budget']]
 
         num_alert = len(overbooked) + len(commesse_loss) + len(st.session_state.pending_allocations)
-        notif_badge = get_circled_number(num_alert)
+        
+        # Struttura Gerarchica Sidebar (Menu Scalare)
+        nav_tree = {
+            "Homepage": [],
+            "Project and Resources Management": ["Notification and Alert", "Project Hub", "Resource Allocation"],
+            "Staffing Intelligence": ["Allocation Advisor", "Build your Team", "Profile Explorer"],
+            "Data Hub": ["Project Portfolio", "Resource Master Data"]
+        }
+        
+        if 'active_macro' not in st.session_state: st.session_state.active_macro = "Homepage"
+        if 'active_sub' not in st.session_state: st.session_state.active_sub = None
 
-        # Spaziatura per formattazione gerarchica visiva scalare
-        indent = "\u2003\u2003" 
+        mapping = {}
+        for macro, subs in nav_tree.items():
+            d_macro = macro + (get_badge(num_alert) if macro=="Project and Resources Management" else "")
+            mapping[d_macro] = (macro, None)
+            
+            if st.session_state.active_macro == macro:
+                for sub in subs:
+                    d_sub = f" {sub}" + (get_badge(num_alert) if sub=="Notification and Alert" else "")
+                    mapping[d_sub] = (macro, sub)
 
-        main_tab = st.sidebar.radio("Struttura Dati", [
-            "Homepage",
-            "Project and Resources Management",
-            "Staffing Intelligence",
-            "Data Hub"
-        ], label_visibility="collapsed")
+        selected_display = st.sidebar.radio("Struttura Navigazione", list(mapping.keys()), label_visibility="collapsed")
+        selected_macro, selected_sub = mapping[selected_display]
 
-        pagina_pm = "Homepage"
-        if "Homepage" in main_tab: 
-            pagina_pm = "Homepage"
-        elif "Project and Resources Management" in main_tab:
-            sub_tab = st.sidebar.radio("Sotto-menu", [f"{indent}Notification and Alert{notif_badge}", f"{indent}Project Hub", f"{indent}Resource Allocation"], label_visibility="collapsed")
-            if "Notification" in sub_tab: pagina_pm = "Notification and Alert"
-            elif "Project" in sub_tab: pagina_pm = "Project Hub"
-            else: pagina_pm = "Resource Allocation"
-        elif "Staffing Intelligence" in main_tab:
-            sub_tab = st.sidebar.radio("Sotto-menu", [f"{indent}Allocation Advisor", f"{indent}Build your Team", f"{indent}Profile Explorer"], label_visibility="collapsed")
-            if "Allocation" in sub_tab: pagina_pm = "Allocation Advisor"
-            elif "Build" in sub_tab: pagina_pm = "Build your Team"
-            else: pagina_pm = "Profile Explorer"
-        elif "Data Hub" in main_tab:
-            sub_tab = st.sidebar.radio("Sotto-menu", [f"{indent}Project Portfolio", f"{indent}Resource Master Data"], label_visibility="collapsed")
-            if "Portfolio" in sub_tab: pagina_pm = "Project Portfolio"
-            else: pagina_pm = "Resource Master Data"
+        if selected_macro != st.session_state.active_macro:
+            st.session_state.active_macro = selected_macro
+            st.session_state.active_sub = nav_tree[selected_macro][0] if nav_tree[selected_macro] else None
+            st.rerun()
+        elif selected_sub != st.session_state.active_sub and selected_sub is not None:
+            st.session_state.active_sub = selected_sub
+            
+        pagina_pm = st.session_state.active_sub if st.session_state.active_sub else st.session_state.active_macro
             
         if st.sidebar.button("Termina Sessione Corrente"): st.session_state.pm_logged_in = False; st.rerun()
 
@@ -594,7 +539,8 @@ if ruolo_utente == "Resource Allocation Engine":
                 "Rifacimento completo del portale di Home Banking e transazioni sicure. La sicurezza è la priorità: richiesto framework Angular per la web app responsive e Java (Spring Boot) per i processi core di transazione. Il team deve includere DevOps Engineer per la gestione dell'infrastruttura Terraform su cloud AWS, oltre a Data Analyst qualificati per la reportistica direzionale tramite SQL e PowerBI.",
                 "Creazione di una piattaforma IoT Edge per il monitoraggio in tempo reale di macchinari industriali. I dati provenienti dai sensori verranno raccolti tramite script Python e processati con algoritmi avanzati di Machine Learning (Scikit-learn). La dashboard di controllo per gli operatori sarà sviluppata in Vue.js. L'infrastruttura backend poggerà completamente su servizi cloud AWS serverless (Lambda e DynamoDB).",
                 "Progetto di modernizzazione e migrazione di un CRM Legacy. Migrazione massiva dei dati storici in SQL verso un nuovo database documentale NoSQL. Il frontend applicativo sarà ricostruito da zero sfruttando React. Serve un Business Analyst per la mappatura dei processi BPMN e la gestione dei requisiti tecnici, affiancato da un Project Manager specializzato in Agile/Scrum per coordinare gli sprint di sviluppo.",
-                "Sviluppo di una piattaforma e-learning video-based ad alto traffico. Il backend per la gestione dello streaming e degli utenti sarà scritto in Node.js con storage distribuito su AWS S3. Il client web necessita di competenze avanzate in HTML/CSS e TypeScript. È richiesta inoltre la presenza di un Data Scientist che si occuperà di creare il motore di raccomandazione dei corsi basato in Python e logiche SQL complesse."
+                "Sviluppo di una piattaforma e-learning video-based ad alto traffico. Il backend per la gestione dello streaming e degli utenti sarà scritto in Node.js con storage distribuito su AWS S3. Il client web necessita di competenze avanzate in HTML/CSS e TypeScript. È richiesta inoltre la presenza di un Data Scientist che si occuperà di creare il motore di raccomandazione dei corsi basato in Python e logiche SQL complesse.",
+                "Sviluppo architettura GenAI Chatbot integrata nel portale HR interno. Richiesta conoscenza approfondita di LangChain e Python per orchestrare le chiamate LLM, oltre alla gestione di un database vettoriale (es. Pinecone). Il layer di interfaccia sarà basato su React e il deployment avverrà tramite Kubernetes su cluster privato."
             ]
             
             if "saved_testo_brief" not in st.session_state: st.session_state.saved_testo_brief = ""
@@ -610,7 +556,7 @@ if ruolo_utente == "Resource Allocation Engine":
                 if err_msg:
                     st.error(err_msg)
                 elif not fasi: 
-                    st.warning("Non è stato possibile mappare i requisiti. Inserire tecnologie riconoscibili (es. React, Node, Python).")
+                    st.warning("Non è stato possibile mappare i requisiti. Inserire tecnologie riconoscibili (es. React, Node, Python, AWS).")
                 else:
                     st.session_state.wbs_data = pd.DataFrame(fasi)
                     team = []
@@ -660,7 +606,7 @@ if ruolo_utente == "Resource Allocation Engine":
                 oggi = datetime.today()
                 mese_offset = st.session_state.get('team_cal_idx', 0)
                 
-                # Setup navigazione date
+                # Calcolo mese ciclico
                 anno_c = oggi.year
                 mese_c = oggi.month + mese_offset
                 while mese_c > 12:
@@ -689,7 +635,9 @@ if ruolo_utente == "Resource Allocation Engine":
                     for nome in t_sel:
                         r_id = df_risorse[df_risorse['Nome'] == nome]['ID'].values[0]
                         sat = get_saturazione(r_id, df_allocazioni)
-                        html_grid += f"<div class='scheduling-row'><div class='scheduling-name'>{nome}</div>"
+                        prog_att = get_progetti_risorsa(r_id, df_allocazioni, df_commesse)
+                        
+                        html_grid += f"<div class='scheduling-row'><div class='scheduling-name'>{nome}<br><span style='font-size:11px; color:#8B949E; font-weight:400;'>{prog_att}</span></div>"
                         for d in giorni_del_mese:
                             if d.weekday() >= 5: bg = "#21262D"
                             elif sat == 0: bg = "#EF4444"
@@ -708,7 +656,10 @@ if ruolo_utente == "Resource Allocation Engine":
                             with cols[j]:
                                 r_id = df_risorse[df_risorse['Nome'] == nome]['ID'].values[0]
                                 sat = get_saturazione(r_id, df_allocazioni)
-                                st.markdown(f"<h5 style='text-align:center; color:var(--text-color); margin-bottom:2px;'>{nome}</h5>", unsafe_allow_html=True)
+                                prog_att = get_progetti_risorsa(r_id, df_allocazioni, df_commesse)
+                                
+                                st.markdown(f"<h5 style='text-align:center; color:var(--text-color); margin-bottom:0px;'>{nome}</h5>", unsafe_allow_html=True)
+                                st.markdown(f"<p style='text-align:center; font-size:11px; color:#8B949E; margin-top:2px; margin-bottom:10px;'>{prog_att}</p>", unsafe_allow_html=True)
                                 
                                 html_cal = "<div style='display:grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 30px;'>"
                                 for g in ["Lu","Ma","Me","Gi","Ve","Sa","Do"]: html_cal += f"<div style='text-align:center; font-size:10px;'>{g}</div>"
@@ -867,34 +818,43 @@ elif ruolo_utente == "Talent Management":
     if not st.session_state.hr_logged_in:
         st.markdown("<h1 class='gradient-title'>Gateway Amministrativo HR</h1>", unsafe_allow_html=True)
         with st.form("login_hr"):
-            username = st.text_input("Identificativo Reparto", help="hr")
-            password = st.text_input("Chiave Accesso Struttura", type="password", help="hr123")
+            username = st.text_input("Codice Reparto")
+            password = st.text_input("Chiave Accesso", type="password")
             if st.form_submit_button("Esegui Login"):
                 if username == "hr" and password == "hr123":
                     st.session_state.hr_logged_in = True; st.rerun()
                 else: 
-                    st.error("Credenziali Errate.")
+                    st.error("Credenziali Errate. Usare hr / hr123")
     else:
-        st.sidebar.markdown("### Moduli Operativi")
-        indent = "\u2003\u2003"
-        hr_main = st.sidebar.radio("Struttura Navigazione", [
-            "Homepage", 
-            "Talent Lifecycle", 
-            "HR Operations", 
-            "Data Hub"
-        ], label_visibility="collapsed")
+        # Struttura Gerarchica Sidebar HR (Menu Scalare)
+        hr_nav_tree = {
+            "Homepage": [],
+            "Talent Lifecycle": ["Talent Onboarding", "Career Development"],
+            "HR Operations": ["ERP Integration"],
+            "Data Hub": ["Data Repository"]
+        }
         
-        pagina_hr = "Homepage"
-        if "Homepage" in hr_main: pagina_hr = "Homepage"
-        elif "Talent Lifecycle" in hr_main: 
-            s_tab = st.sidebar.radio("Sotto-menu", [f"{indent}Talent Onboarding", f"{indent}Career Development"], label_visibility="collapsed")
-            pagina_hr = "Talent Onboarding" if "Onboarding" in s_tab else "Career Development"
-        elif "HR Operations" in hr_main: 
-            s_tab = st.sidebar.radio("Sotto-menu", [f"{indent}ERP Integration"], label_visibility="collapsed")
-            pagina_hr = "ERP Integration"
-        elif "Data Hub" in hr_main: 
-            s_tab = st.sidebar.radio("Sotto-menu", [f"{indent}Data Repository"], label_visibility="collapsed")
-            pagina_hr = "Data Repository"
+        if 'hr_active_macro' not in st.session_state: st.session_state.hr_active_macro = "Homepage"
+        if 'hr_active_sub' not in st.session_state: st.session_state.hr_active_sub = None
+
+        hr_mapping = {}
+        for macro, subs in hr_nav_tree.items():
+            hr_mapping[macro] = (macro, None)
+            if st.session_state.hr_active_macro == macro:
+                for sub in subs:
+                    hr_mapping[f" {sub}"] = (macro, sub)
+
+        selected_display = st.sidebar.radio("Struttura Navigazione", list(hr_mapping.keys()), label_visibility="collapsed")
+        selected_macro, selected_sub = hr_mapping[selected_display]
+
+        if selected_macro != st.session_state.hr_active_macro:
+            st.session_state.hr_active_macro = selected_macro
+            st.session_state.hr_active_sub = hr_nav_tree[selected_macro][0] if hr_nav_tree[selected_macro] else None
+            st.rerun()
+        elif selected_sub != st.session_state.hr_active_sub and selected_sub is not None:
+            st.session_state.hr_active_sub = selected_sub
+            
+        pagina_hr = st.session_state.hr_active_sub if st.session_state.hr_active_sub else st.session_state.hr_active_macro
         
         if st.sidebar.button("Termina Sessione"): st.session_state.hr_logged_in = False; st.rerun()
 
