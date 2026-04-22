@@ -97,15 +97,35 @@ st.markdown("""
     .scheduling-name { min-width: 180px; max-width: 180px; font-weight: 600; font-size: 14px; position: sticky; left: 0; background-color: var(--background-color); z-index: 2; padding-right: 15px; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
     .scheduling-cell { min-width: 35px; height: 35px; margin-right: 2px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 600; }
 
-    /* Stile Neon opzionale per il menu standard */
+    /* --- MENU SCALARE NEON --- */
+    /* Nasconde il cerchiolino del radio button nativo di Streamlit */
+    [data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {
+        display: none !important;
+    }
+    /* Stile della voce di menu base */
+    [data-testid="stSidebar"] div[role="radiogroup"] label {
+        padding: 10px 14px;
+        margin-bottom: 2px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] label:hover {
+        background: rgba(255,255,255,0.05);
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] label p {
+        font-size: 1.05rem;
+        transition: all 0.3s ease;
+    }
+    /* Selezionato NEON */
     [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
         background: rgba(59, 130, 246, 0.12) !important;
-        box-shadow: inset 4px 0 0 #3B82F6 !important;
-        border-radius: 4px;
+        box-shadow: inset 4px 0 0 #3B82F6, 0 0 15px rgba(59,130,246,0.2) !important;
     }
     [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) p {
         font-weight: 800 !important;
         color: #3B82F6 !important;
+        text-shadow: 0 0 10px rgba(59,130,246,0.6), 0 0 20px rgba(59,130,246,0.3) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -123,6 +143,7 @@ def formatta_data(data_str):
     except: return data_str
 
 def get_badge(n):
+    """ Restituisce un carattere Unicode nativo compatibile con i menu Streamlit senza usare HTML """
     if n <= 0: return ""
     badges = ["❶","❷","❸","❹","❺","❻","❼","❽","❾","❿"]
     return f" {badges[n-1]}" if n <= 10 else f" ({n})"
@@ -383,33 +404,46 @@ if ruolo_utente == "Resource Allocation Engine":
 
         num_alert = len(overbooked) + len(commesse_loss) + len(st.session_state.pending_allocations)
         
-        # --- MENU NATIVO STREAMLIT (STABILE E SENZA DELAY) ---
-        st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Sezione Principale</p>", unsafe_allow_html=True)
-        main_tab = st.sidebar.radio(
-            "Sezione Principale", 
-            ["Homepage", f"Project and Resources Management{get_badge(num_alert)}", "Staffing Intelligence", "Data Hub"],
-            label_visibility="collapsed"
-        )
+        # Struttura Gerarchica Sidebar (Menu Scalare Neon Ripristinato)
+        nav_tree = {
+            "Homepage": [],
+            "Project and Resources Management": ["Notification and Alert", "Project Hub", "Resource Allocation"],
+            "Staffing Intelligence": ["Allocation Advisor", "Build your Team", "Profile Explorer"],
+            "Data Hub": ["Project Portfolio", "Resource Master Data"]
+        }
         
-        pagina_pm = "Homepage"
-        
-        # Gestione Sottomenu Condizionali Robusta
-        if "Project and Resources" in main_tab:
-            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Moduli Gestionali</p>", unsafe_allow_html=True)
-            sub_tab = st.sidebar.radio("Sottomenu", [f"Notification and Alert{get_badge(num_alert)}", "Project Hub", "Resource Allocation"], label_visibility="collapsed")
-            pagina_pm = "Notification and Alert" if "Notification" in sub_tab else ("Project Hub" if "Project" in sub_tab else "Resource Allocation")
-            
-        elif main_tab == "Staffing Intelligence":
-            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Moduli Intelligenza</p>", unsafe_allow_html=True)
-            sub_tab = st.sidebar.radio("Sottomenu", ["Allocation Advisor", "Build your Team", "Profile Explorer"], label_visibility="collapsed")
-            pagina_pm = sub_tab
-            
-        elif main_tab == "Data Hub":
-            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Repository Dati</p>", unsafe_allow_html=True)
-            sub_tab = st.sidebar.radio("Sottomenu", ["Project Portfolio", "Resource Master Data"], label_visibility="collapsed")
-            pagina_pm = sub_tab
+        if 'active_macro' not in st.session_state: st.session_state.active_macro = "Homepage"
+        if 'active_sub' not in st.session_state: st.session_state.active_sub = None
 
-        st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
+        mapping = {}
+        for macro, subs in nav_tree.items():
+            d_macro = macro + (get_badge(num_alert) if macro=="Project and Resources Management" else "")
+            mapping[d_macro] = (macro, None)
+            if st.session_state.active_macro == macro:
+                for sub in subs:
+                    d_sub = f"  {sub}" + (get_badge(num_alert) if sub=="Notification and Alert" else "")
+                    mapping[d_sub] = (macro, sub)
+
+        def_key = st.session_state.active_macro + (get_badge(num_alert) if st.session_state.active_macro=="Project and Resources Management" else "")
+        if st.session_state.active_sub:
+            for k, (mac, sub) in mapping.items():
+                if sub == st.session_state.active_sub: def_key = k
+
+        try: default_idx = list(mapping.keys()).index(def_key)
+        except ValueError: default_idx = 0
+
+        selected_display = st.sidebar.radio("Struttura Navigazione", list(mapping.keys()), index=default_idx, label_visibility="collapsed")
+        selected_macro, selected_sub = mapping[selected_display]
+
+        if selected_macro != st.session_state.active_macro:
+            st.session_state.active_macro = selected_macro
+            st.session_state.active_sub = nav_tree[selected_macro][0] if nav_tree[selected_macro] else None
+            st.rerun()
+        elif selected_sub != st.session_state.active_sub and selected_sub is not None:
+            st.session_state.active_sub = selected_sub
+            
+        pagina_pm = st.session_state.active_sub if st.session_state.active_sub else st.session_state.active_macro
+            
         if st.sidebar.button("Termina Sessione Corrente"): st.session_state.pm_logged_in = False; st.rerun()
 
         # --- CONTENUTI PAGINE ---
@@ -828,25 +862,44 @@ elif ruolo_utente == "Talent Management":
                 else: 
                     st.error("Credenziali Errate. Usare hr / hr123")
     else:
-        # --- MENU NATIVO STREAMLIT HR ---
-        st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Sezione Principale</p>", unsafe_allow_html=True)
-        hr_main = st.sidebar.radio("Sezione Principale", ["Homepage", "Talent Lifecycle", "HR Operations", "Data Hub"], label_visibility="collapsed")
+        # Struttura Gerarchica Sidebar HR (Menu Scalare Ripristinato)
+        hr_nav_tree = {
+            "Homepage": [],
+            "Talent Lifecycle": ["Talent Onboarding", "Career Development"],
+            "HR Operations": ["ERP Integration"],
+            "Data Hub": ["Data Repository"]
+        }
         
-        pagina_hr = "Homepage"
-        if hr_main == "Talent Lifecycle":
-            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Ciclo di Vita</p>", unsafe_allow_html=True)
-            s_tab = st.sidebar.radio("Sottomenu", ["Talent Onboarding", "Career Development"], label_visibility="collapsed")
-            pagina_hr = s_tab
-        elif hr_main == "HR Operations":
-            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Operatività</p>", unsafe_allow_html=True)
-            s_tab = st.sidebar.radio("Sottomenu", ["ERP Integration"], label_visibility="collapsed")
-            pagina_hr = s_tab
-        elif hr_main == "Data Hub":
-            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Repository Dati</p>", unsafe_allow_html=True)
-            s_tab = st.sidebar.radio("Sottomenu", ["Data Repository"], label_visibility="collapsed")
-            pagina_hr = s_tab
+        if 'hr_active_macro' not in st.session_state: st.session_state.hr_active_macro = "Homepage"
+        if 'hr_active_sub' not in st.session_state: st.session_state.hr_active_sub = None
+
+        hr_mapping = {}
+        for macro, subs in hr_nav_tree.items():
+            hr_mapping[macro] = (macro, None)
+            if st.session_state.hr_active_macro == macro:
+                for sub in subs:
+                    hr_mapping[f"  {sub}"] = (macro, sub)
+
+        def_key_hr = st.session_state.hr_active_macro
+        if st.session_state.hr_active_sub:
+            for k, (mac, sub) in hr_mapping.items():
+                if sub == st.session_state.hr_active_sub: def_key_hr = k
+
+        try: default_idx_hr = list(hr_mapping.keys()).index(def_key_hr)
+        except ValueError: default_idx_hr = 0
+
+        selected_display = st.sidebar.radio("Struttura Navigazione", list(hr_mapping.keys()), index=default_idx_hr, label_visibility="collapsed")
+        selected_macro, selected_sub = hr_mapping[selected_display]
+
+        if selected_macro != st.session_state.hr_active_macro:
+            st.session_state.hr_active_macro = selected_macro
+            st.session_state.hr_active_sub = hr_nav_tree[selected_macro][0] if hr_nav_tree[selected_macro] else None
+            st.rerun()
+        elif selected_sub != st.session_state.hr_active_sub and selected_sub is not None:
+            st.session_state.hr_active_sub = selected_sub
+            
+        pagina_hr = st.session_state.hr_active_sub if st.session_state.hr_active_sub else st.session_state.hr_active_macro
         
-        st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
         if st.sidebar.button("Termina Sessione"): st.session_state.hr_logged_in = False; st.rerun()
 
         if pagina_hr == "Homepage":
