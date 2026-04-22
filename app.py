@@ -89,6 +89,7 @@ st.markdown("""
     .alert-red { border-color: #EF4444; }
     .alert-orange { border-color: #F59E0B; }
     .alert-blue { border-color: #3B82F6; }
+    .alert-green { border-color: #10B981; }
     
     /* CSS Scheduling Assistant Adattivo */
     .scheduling-container { overflow-x: auto; padding-bottom: 15px; margin-top: 20px; }
@@ -96,6 +97,23 @@ st.markdown("""
     .scheduling-header { font-weight: 700; font-size: 11px; color: var(--kpi-text-sub); text-align: center; min-width: 35px; }
     .scheduling-name { min-width: 180px; max-width: 180px; font-weight: 600; font-size: 14px; position: sticky; left: 0; background-color: var(--background-color); z-index: 2; padding-right: 15px; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
     .scheduling-cell { min-width: 35px; height: 35px; margin-right: 2px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 600; }
+
+    /* CSS Card ERP uniformi */
+    .erp-card {
+        background: var(--kpi-bg);
+        border: 1px solid var(--kpi-border);
+        border-radius: 12px;
+        padding: 40px 20px;
+        text-align: center;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+        height: 220px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.3s ease;
+    }
+    .erp-card:hover { transform: translateY(-5px); box-shadow: 0 12px 40px rgba(0,0,0,0.15); }
 
     /* --- MENU SCALARE NEON --- */
     [data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {
@@ -162,12 +180,12 @@ def get_badge(n):
 
 def applica_tema_plotly(fig):
     fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font=dict(family="Outfit", color="#8B949E"), margin=dict(l=20, r=20, t=40, b=20))
+    fig.update_traces(hovertemplate="<b>%{label}</b><br>Valore: %{value}<br>Incidenza: %{percent}<extra></extra>")
     return fig
 
 # --- STRUTTURA DATI RELAZIONALE ---
 @st.cache_data
 def genera_dati_strutturali():
-    # AGGIUNTE 20 NUOVE RISORSE (Totale 60)
     nomi_completi = [
         "Marco Rossi", "Giulia Bianchi", "Luca Neri", "Anna Verdi", "Matteo Colombo", "Sofia Ferrari",
         "Andrea Romano", "Martina Bruno", "Alessandro Gallo", "Chiara Conti", "Davide Costa", "Sara Giordano",
@@ -213,20 +231,26 @@ def genera_dati_strutturali():
         {"ID_Commessa": "PRJ-002", "Cliente": "TIM", "Nome": "App Mobile React", "Budget": 38000, "Stato": "Attivo"},
         {"ID_Commessa": "PRJ-003", "Cliente": "Intesa", "Nome": "Dashboard IoT", "Budget": 60000, "Stato": "Attivo"},
         {"ID_Commessa": "PRJ-004", "Cliente": "Ferrari", "Nome": "Piattaforma E-commerce", "Budget": 20000, "Stato": "In Avvio"},
-        {"ID_Commessa": "PRJ-005", "Cliente": "Poste", "Nome": "Ottimizzazione SQL", "Budget": 15000, "Stato": "Attivo"}
+        {"ID_Commessa": "PRJ-005", "Cliente": "Poste", "Nome": "Ottimizzazione SQL", "Budget": 15000, "Stato": "Attivo"},
+        {"ID_Commessa": "PRJ-006", "Cliente": "Bauli", "Nome": "Infrastruttura di Rete", "Budget": 25000, "Stato": "Attivo"}
     ])
 
     allocazioni = []
     timesheet = []
     
+    # Generazione organica e distribuita dell'Overbooking
     for _, risorsa in df_risorse.iterrows():
-        num_commesse = random.choices([0, 1, 2], weights=[0.3, 0.5, 0.2])[0]
         id_risorsa = risorsa['ID']
+        # Assegna da 0 a 3 commesse per creare overbooking naturale (es. 50+60+40 = 150%)
+        num_commesse = random.choices([0, 1, 2, 3], weights=[0.25, 0.45, 0.20, 0.10])[0]
+        
         if num_commesse > 0:
             commesse_assegnate = random.sample(df_commesse['ID_Commessa'].tolist(), k=num_commesse)
             for c_id in commesse_assegnate:
-                perc = random.choice([50, 100, 150])
+                # Percentuali variabili per innescare facili sforamenti quando sommate
+                perc = random.choice([30, 40, 50, 60, 100])
                 allocazioni.append({"ID_Risorsa": id_risorsa, "ID_Commessa": c_id, "Impegno_%": perc})
+                
                 giorni_spesi = random.randint(5, 45)
                 timesheet.append({
                     "ID_Risorsa": id_risorsa, "ID_Commessa": c_id,
@@ -268,6 +292,7 @@ if 'Data_Inizio' in st.session_state.df_timesheet.columns:
 
 if "pending_approvals" not in st.session_state: st.session_state.pending_approvals = []
 if "pending_allocations" not in st.session_state: st.session_state.pending_allocations = []
+if "pending_skills" not in st.session_state: st.session_state.pending_skills = []
 if "team_cal_idx" not in st.session_state: st.session_state.team_cal_idx = 0
 if "chat_msgs" not in st.session_state: st.session_state.chat_msgs = [{"role": "assistant", "content": "Smart Assistant inizializzato. Pronto a processare richieste (Es: 'Alloca Marco Rossi su PRJ-001 al 50%')"}]
 if "bot_action" not in st.session_state: st.session_state.bot_action = None
@@ -297,7 +322,6 @@ def analizza_testo_llm(testo, api_key):
     if not api_key:
         return [], [], "🔑 Nessuna API Key trovata nei Secrets."
     
-    # INTEGRAZIONE CATALOGO SKILL PER MAPPING SEMANTICO AI
     catalogo_skill = "React, Vue, TypeScript, HTML/CSS, Angular, Node.js, Python, Java, Go, C#, Spring Boot, SQL, AWS, Docker, Kubernetes, CI/CD, Terraform, Machine Learning, Pandas, LangChain, Pinecone, Excel, PowerBI, BPMN, Agile, Scrum, Jira"
     
     prompt = f"""
@@ -419,7 +443,7 @@ if ruolo_utente == "Resource Allocation Engine":
                 else: 
                     st.error("Credenziali non conformi.")
     else:
-        # Pre-calcolo Allarmi per Notifiche
+        # Pre-calcolo Allarmi per Notifiche Globale
         sat_df = df_allocazioni.groupby('ID_Risorsa')['Impegno_%'].sum().reset_index() if not df_allocazioni.empty else pd.DataFrame()
         overbooked = sat_df[sat_df['Impegno_%'] > 100] if not sat_df.empty else pd.DataFrame()
         
@@ -431,7 +455,7 @@ if ruolo_utente == "Resource Allocation Engine":
             analisi_budget = pd.merge(df_commesse, costo_aggregato, on='ID_Commessa', how='left').fillna(0)
             commesse_loss = analisi_budget[analisi_budget['Costo_Tot_Riga'] > analisi_budget['Budget']]
 
-        num_alert = len(overbooked) + len(commesse_loss) + len(st.session_state.pending_allocations)
+        num_alert = len(overbooked) + len(commesse_loss) + len(st.session_state.pending_allocations) + len(st.session_state.pending_skills)
         
         # Struttura Gerarchica Sidebar
         nav_tree = {
@@ -509,6 +533,8 @@ if ruolo_utente == "Resource Allocation Engine":
                 st.subheader("Rapporto Finanziario Giornaliero")
                 fig2 = px.pie(names=["Revenue Prodotta", "Perdita (Bench)"], values=[revenue_attiva_gg, mancati_incassi_gg], hole=0.3, color_discrete_sequence=["#3B82F6", "#F59E0B"])
                 st.plotly_chart(applica_tema_plotly(fig2), use_container_width=True)
+            
+            st.markdown("<p style='font-size:13px; color:var(--kpi-text-sub); text-align:center;'>ℹ️ <b>Revenue Prodotta</b>: Valore quotidiano generato dalle risorse allocate al momento. <b>Perdita (Bench)</b>: Costo opportunità / fatturato perso per le risorse a disposizione nel database che non sono staffate. Le percentuali indicano l'incidenza sul totale potenziale teorico dell'azienda.</p>", unsafe_allow_html=True)
 
         elif pagina_pm == "Notification and Alert":
             st.markdown("<h1 class='gradient-title'>Notification and Alert</h1>", unsafe_allow_html=True)
@@ -516,21 +542,32 @@ if ruolo_utente == "Resource Allocation Engine":
                 st.success("Nessun conflitto logico rilevato. Parametri operativi entro i limiti di sistema.")
             else:
                 if not overbooked.empty:
-                    st.markdown("<h3 style='color: #EF4444;'>🔴 Allarmi di Overbooking Critico</h3>", unsafe_allow_html=True)
+                    st.markdown("<h3 style='color: #EF4444;'>Allarmi di Overbooking Critico</h3>", unsafe_allow_html=True)
                     for _, r in overbooked.iterrows():
                         match = df_risorse[df_risorse['ID'] == r['ID_Risorsa']]
                         nome_ris = match['Nome'].values[0] if not match.empty else r['ID_Risorsa']
                         st.markdown(f"<div class='alert-box alert-red'>Il record <b>{nome_ris}</b> ({r['ID_Risorsa']}) è allocato oltre il limite ({r['Impegno_%']}%). Richiesto intervento in Resource Allocation.</div>", unsafe_allow_html=True)
                 
                 if len(commesse_loss) > 0:
-                    st.markdown("<h3 style='color: #F59E0B; margin-top:20px;'>🟠 Allarmi Erosione Margine</h3>", unsafe_allow_html=True)
+                    st.markdown("<h3 style='color: #F59E0B; margin-top:20px;'>Allarmi Erosione Margine</h3>", unsafe_allow_html=True)
                     for _, c in commesse_loss.iterrows():
                         st.markdown(f"<div class='alert-box alert-orange'>La commessa <b>{c['ID_Commessa']}</b> ha superato il budget stimato.<br>Costo Consuntivato: <b>{formatta_valuta(c['Costo_Tot_Riga'])}</b> | Budget Originale: <b>{formatta_valuta(c['Budget'])}</b>.</div>", unsafe_allow_html=True)
                 
                 if len(st.session_state.pending_allocations) > 0:
-                    st.markdown("<h3 style='color: #3B82F6; margin-top:20px;'>🔵 Richieste in Sospeso (Workspace)</h3>", unsafe_allow_html=True)
+                    st.markdown("<h3 style='color: #3B82F6; margin-top:20px;'>Richieste in Sospeso (Workspace)</h3>", unsafe_allow_html=True)
                     for req in st.session_state.pending_allocations:
                         st.markdown(f"<div class='alert-box alert-blue'>L'utente <b>{req['Nome']}</b> ha richiesto l'allocazione al {req['Occupazione']}% sul progetto {req['Progetto']}. (Autorizzabile in Resource Allocation).</div>", unsafe_allow_html=True)
+
+                if len(st.session_state.pending_skills) > 0:
+                    st.markdown("<h3 style='color: #10B981; margin-top:20px;'>Richieste Integrazione Skill (Da Validare)</h3>", unsafe_allow_html=True)
+                    for i, s in enumerate(list(st.session_state.pending_skills)):
+                        st.markdown(f"<div class='alert-box alert-green'>La risorsa <b>{s['Risorsa']}</b> richiede l'aggiunta in anagrafica della competenza tecnica: <b>{s['Skill']}</b>.</div>", unsafe_allow_html=True)
+                        if st.button("Conferma e Inserisci in DB", key=f"app_skill_{i}"):
+                            idx_ris = df_risorse.index[df_risorse['Nome'] == s['Risorsa']].tolist()[0]
+                            old_skills = st.session_state.df_risorse.at[idx_ris, 'Skill']
+                            st.session_state.df_risorse.at[idx_ris, 'Skill'] = f"{old_skills}, {s['Skill']}"
+                            st.session_state.pending_skills.pop(i)
+                            st.rerun()
 
         elif pagina_pm == "Project Hub":
             st.markdown("<h1 class='gradient-title'>Project Hub</h1>", unsafe_allow_html=True)
@@ -549,7 +586,12 @@ if ruolo_utente == "Resource Allocation Engine":
                             st.rerun()
 
             st.markdown("### Database Commesse Attive")
-            edited_comm = st.data_editor(st.session_state.df_commesse, use_container_width=True, num_rows="dynamic", column_config={"Budget": st.column_config.NumberColumn(format="€ %d")})
+            edited_comm = st.data_editor(
+                st.session_state.df_commesse, 
+                use_container_width=True, 
+                num_rows="dynamic", 
+                column_config={"Budget": st.column_config.NumberColumn("Budget", format="€ %,d")}
+            )
             if st.button("Sincronizza Modifiche Globali"):
                 st.session_state.df_commesse = edited_comm
                 st.success("Database aggiornato.")
@@ -680,15 +722,20 @@ if ruolo_utente == "Resource Allocation Engine":
                     
                     for _, row in st.session_state.wbs_data.iterrows():
                         try:
-                            giorni = float(row.get('Giorni', 0))
-                            w_skill = str(row.get('Skill', '')).strip().lower()
+                            # FIX NaN: Conversione forzata a 0 se manca il valore nel form
+                            giorni = pd.to_numeric(row.get('Giorni', 0), errors='coerce')
+                            if pd.isna(giorni): giorni = 0.0
                             
+                            w_skill = str(row.get('Skill', '')).strip().lower()
                             mask = st.session_state.team_data['Skill'].astype(str).str.strip().str.lower() == w_skill
                             m = st.session_state.team_data[mask]
                             
                             if not m.empty:
-                                costo_gg = float(m.iloc[0]['Costo (€)'])
-                                margine = float(m.iloc[0]['Margine (%)'])
+                                costo_gg = pd.to_numeric(m.iloc[0]['Costo (€)'], errors='coerce')
+                                margine = pd.to_numeric(m.iloc[0]['Margine (%)'], errors='coerce')
+                                
+                                if pd.isna(costo_gg): costo_gg = 0.0
+                                if pd.isna(margine): margine = 0.0
                                 
                                 c = giorni * costo_gg
                                 costo_tot += c
@@ -824,24 +871,38 @@ if ruolo_utente == "Resource Allocation Engine":
                 c3.markdown(f"<div class='kpi-card green'><h3>Saturazione Lavorativa</h3><p style='font-size:22px; font-weight:700; color:var(--text-color);'>{sat}%</p></div>", unsafe_allow_html=True)
 
                 st.markdown("---")
-                st.subheader("Dettaglio Cliente e Commesse Assegnate")
-                allocs_risorsa = df_allocazioni[df_allocazioni['ID_Risorsa'] == id_ric]
+                col_left, col_right = st.columns(2)
                 
-                if not allocs_risorsa.empty:
-                    for i, a in allocs_risorsa.iterrows():
-                        match_c = df_commesse[df_commesse['ID_Commessa'] == a['ID_Commessa']]
-                        nome_progetto = match_c['Nome'].values[0]
-                        cliente_assegnato = match_c['Cliente'].values[0]
-                        
-                        with st.container(border=True):
-                            c_a, c_b, c_c = st.columns([3, 1, 1])
-                            c_a.write(f"**Cliente:** {cliente_assegnato} | **Progetto:** {a['ID_Commessa']} - {nome_progetto}")
-                            c_b.write(f"**Impegno:** {a['Impegno_%']}%")
-                            if c_c.button("Revoca Assegnazione", key=f"rev_{i}"):
-                                st.session_state.df_allocazioni = st.session_state.df_allocazioni.drop(i)
-                                st.rerun()
-                else:
-                    st.info("La risorsa non è associata ad alcun cliente (Bench).")
+                with col_left:
+                    st.subheader("Dettaglio Cliente e Commesse Assegnate")
+                    allocs_risorsa = df_allocazioni[df_allocazioni['ID_Risorsa'] == id_ric]
+                    
+                    if not allocs_risorsa.empty:
+                        for i, a in allocs_risorsa.iterrows():
+                            match_c = df_commesse[df_commesse['ID_Commessa'] == a['ID_Commessa']]
+                            nome_progetto = match_c['Nome'].values[0]
+                            cliente_assegnato = match_c['Cliente'].values[0]
+                            
+                            with st.container(border=True):
+                                c_a, c_b, c_c = st.columns([3, 1, 1])
+                                c_a.write(f"**Cliente:** {cliente_assegnato} | **Progetto:** {a['ID_Commessa']} - {nome_progetto}")
+                                c_b.write(f"**Impegno:** {a['Impegno_%']}%")
+                                if c_c.button("Revoca", key=f"rev_{i}"):
+                                    st.session_state.df_allocazioni = st.session_state.df_allocazioni.drop(i)
+                                    st.rerun()
+                    else:
+                        st.info("La risorsa non è associata ad alcun cliente (Bench).")
+                
+                with col_right:
+                    st.subheader("Storico Progetti (Completati)")
+                    st.markdown("<div style='padding:15px; border-radius:8px; border:1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+                    if dati['Seniority'] == "Junior":
+                        st.markdown("🔹 **Progetto Formativo Cloud** (100%) - *Durata: 3 Mesi*<br>🔹 **Assistenza Frontend E-Commerce** (50%) - *Durata: 2 Mesi*", unsafe_allow_html=True)
+                    elif dati['Seniority'] == "Mid":
+                        st.markdown("🔹 **Migrazione CRM Fastweb** (100%) - *Durata: 8 Mesi*<br>🔹 **Sviluppo Portale API** (100%) - *Durata: 5 Mesi*<br>🔹 **Bug Fixing App Mobile** (30%) - *Durata: 6 Mesi*", unsafe_allow_html=True)
+                    else:
+                        st.markdown("🔹 **Architettura Cloud BPER** (100%) - *Durata: 12 Mesi*<br>🔹 **Tech Lead Progetto IoT** (50%) - *Durata: 9 Mesi*<br>🔹 **Rifacimento Core Banking** (80%) - *Durata: 18 Mesi*", unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
         elif pagina_pm == "Resource Master Data":
             st.markdown("<h1 class='gradient-title'>Resource Master Data</h1>", unsafe_allow_html=True)
@@ -886,13 +947,14 @@ elif ruolo_utente == "Talent Workspace":
                 st.subheader("Processo Espansione Competenze")
                 ns = st.text_input("Segnala Nuova Tecnologia (es. Go, Terraform):")
                 if st.button("Sottoponi per Validazione") and ns:
-                    st.success("Iter di Validazione Avviato.")
+                    st.session_state.pending_skills.append({"Risorsa": st.session_state.current_it_user, "Skill": ns})
+                    st.success("Iter di Validazione Avviato e inviato al Management.")
             with c2:
                 st.markdown("<div class='kpi-card kpi-card-shadow orange'><h3>Richiesta Cambio Progetto</h3>", unsafe_allow_html=True)
                 with st.form("req"):
                     p_req = st.text_input("Inserisci ID o Nome Progetto Target")
                     d_req = st.slider("Disponibilità (FTE %)", 25, 100, 50, 25)
-                    dt_req = st.date_input("Restrizione Temporale", value=(datetime.today(), datetime.today()+timedelta(days=30)))
+                    dt_req = st.date_input("Durata progetto", value=(datetime.today(), datetime.today()+timedelta(days=30)))
                     if st.form_submit_button("Invia Richiesta") and len(dt_req)==2:
                         st.session_state.pending_allocations.append({"ID": id_c, "Nome": dati_utente['Nome'], "Progetto": p_req, "Occupazione": d_req, "Dal": dt_req[0], "Al": dt_req[1]})
                         st.success("Notifica inserita in coda nel Resource Allocation Engine.")
@@ -994,7 +1056,8 @@ elif ruolo_utente == "Talent Management":
                 st.subheader("Rapporto Gerarchico")
                 df_sen = df_risorse['Seniority'].value_counts().reset_index()
                 df_sen.columns = ['Seniority', 'Conteggio']
-                fig1 = px.pie(df_sen, values='Conteggio', names='Seniority', hole=0.4, color_discrete_sequence=px.colors.sequential.Tealgrn)
+                # PALETTE COERENTE
+                fig1 = px.pie(df_sen, values='Conteggio', names='Seniority', hole=0.4, color_discrete_sequence=["#3B82F6", "#10B981", "#F59E0B"])
                 fig1 = applica_tema_plotly(fig1)
                 fig1.update_layout(showlegend=False)
                 st.plotly_chart(fig1, use_container_width=True)
@@ -1006,7 +1069,7 @@ elif ruolo_utente == "Talent Management":
                 df_ruoli = df_risorse if area_selezionata == "Tutto il Gruppo" else df_risorse[df_risorse['Macro_Area'] == area_selezionata]
                 df_ruoli = df_ruoli['Ruolo'].str.replace('Senior ', '').str.replace('Mid ', '').str.replace('Junior ', '').value_counts().reset_index()
                 df_ruoli.columns = ['Ruolo', 'Conteggio']
-                fig2 = px.bar(df_ruoli, x='Ruolo', y='Conteggio', color='Ruolo', color_discrete_sequence=px.colors.sequential.Blues_r)
+                fig2 = px.bar(df_ruoli, x='Ruolo', y='Conteggio', color='Ruolo', color_discrete_sequence=["#3B82F6", "#10B981", "#F59E0B", "#EF4444"])
                 fig2 = applica_tema_plotly(fig2)
                 fig2.update_layout(showlegend=False)
                 st.plotly_chart(fig2, use_container_width=True)
@@ -1047,11 +1110,25 @@ elif ruolo_utente == "Talent Management":
             st.markdown("<h1 class='gradient-title'>ERP Integration (Paghe/Fatturazione)</h1>", unsafe_allow_html=True)
             st.write("Modulo di raccordo per allineare l'infrastruttura Cloud con i sistemi aziendali legacy (Zucchetti, SAP, ecc.).")
             st.markdown("<br>", unsafe_allow_html=True)
-            c1, c2 = st.columns([1, 1])
+            
+            c1, c2 = st.columns(2)
             with c1:
-                st.download_button("Download", data=df_risorse.to_csv(index=False).encode('utf-8'), file_name='export_hr_erp.csv', use_container_width=True)
+                st.markdown("""
+                <div class='erp-card'>
+                    <h3 style='color:#3B82F6; margin-bottom:5px;'>Export Flussi Paghe</h3>
+                    <p style='color:var(--kpi-text-sub); font-size:14px; margin-bottom:20px;'>Genera tracciato in formato CSV massivo</p>
+                """, unsafe_allow_html=True)
+                st.download_button("Scarica Export CSV", data=df_risorse.to_csv(index=False).encode('utf-8'), file_name='export_hr_erp.csv', use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+                
             with c2:
+                st.markdown("""
+                <div class='erp-card'>
+                    <h3 style='color:#10B981; margin-bottom:5px;'>Import Massivo Dati</h3>
+                    <p style='color:var(--kpi-text-sub); font-size:14px; margin-bottom:20px;'>Sincronizza l'anagrafica da fonti esterne</p>
+                """, unsafe_allow_html=True)
                 up = st.file_uploader("Upload", type=['csv'], label_visibility="collapsed")
+                st.markdown("</div>", unsafe_allow_html=True)
                 if up: st.success("Decodifica file avvenuta con successo. Dati pronti al merge.")
 
         elif pagina_hr == "Data Repository":
