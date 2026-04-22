@@ -13,7 +13,7 @@ import json
 # ==========================================
 st.set_page_config(page_title="ResourceAI - Manager", layout="wide", initial_sidebar_state="expanded")
 
-# --- INIEZIONE CSS CORPORATE SAAS ---
+# --- INIEZIONE CSS CORPORATE SAAS (TEMA ADATTIVO LIGHT/DARK) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
@@ -44,18 +44,19 @@ st.markdown("""
         letter-spacing: -0.5px;
     }
     
-    /* Gestione dinamica colori Light/Dark */
+    /* Variabili Adattive per Light e Dark Mode */
     :root {
-        --kpi-bg: rgba(30,33,39,0.05);
-        --kpi-border: rgba(128,128,128,0.2);
+        --kpi-bg: rgba(0,0,0,0.03);
+        --kpi-border: rgba(0,0,0,0.1);
         --kpi-text-main: var(--text-color);
-        --kpi-text-sub: #8B949E;
+        --kpi-text-sub: #555;
     }
     
     @media (prefers-color-scheme: dark) {
         :root {
             --kpi-bg: linear-gradient(145deg, rgba(30,33,39,0.7) 0%, rgba(20,22,26,0.9) 100%);
             --kpi-border: rgba(255,255,255,0.05);
+            --kpi-text-sub: #8B949E;
         }
     }
     
@@ -87,44 +88,12 @@ st.markdown("""
     }
     .alert-red { border-color: #EF4444; }
     .alert-orange { border-color: #F59E0B; }
+    .alert-blue { border-color: #3B82F6; }
     
-    .stTabs [data-baseweb="tab"] { font-size: 1rem; font-weight: 600; padding: 10px 20px; }
-
-    /* --- MENU SCALARE NEON --- */
-    /* Nasconde il cerchiolino del radio button nativo di Streamlit */
-    [data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {
-        display: none !important;
-    }
-    /* Stile della voce di menu base */
-    [data-testid="stSidebar"] div[role="radiogroup"] label {
-        padding: 10px 14px;
-        margin-bottom: 2px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-    [data-testid="stSidebar"] div[role="radiogroup"] label:hover {
-        background: rgba(255,255,255,0.05);
-    }
-    [data-testid="stSidebar"] div[role="radiogroup"] label p {
-        font-size: 1.05rem;
-        transition: all 0.3s ease;
-    }
-    /* Selezionato NEON */
-    [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
-        background: rgba(59, 130, 246, 0.12) !important;
-        box-shadow: inset 4px 0 0 #3B82F6, 0 0 15px rgba(59,130,246,0.2) !important;
-    }
-    [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) p {
-        font-weight: 800 !important;
-        color: #F8F9FA !important;
-        text-shadow: 0 0 10px rgba(59,130,246,0.6), 0 0 20px rgba(59,130,246,0.3) !important;
-    }
-
-    /* CSS Scheduling Assistant */
+    /* CSS Scheduling Assistant Adattivo */
     .scheduling-container { overflow-x: auto; padding-bottom: 15px; margin-top: 20px; }
     .scheduling-row { display: flex; align-items: center; margin-bottom: 4px; flex-wrap: nowrap; }
-    .scheduling-header { font-weight: 700; font-size: 11px; color: #8B949E; text-align: center; min-width: 35px; }
+    .scheduling-header { font-weight: 700; font-size: 11px; color: var(--kpi-text-sub); text-align: center; min-width: 35px; }
     .scheduling-name { min-width: 180px; max-width: 180px; font-weight: 600; font-size: 14px; position: sticky; left: 0; background-color: var(--background-color); z-index: 2; padding-right: 15px; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
     .scheduling-cell { min-width: 35px; height: 35px; margin-right: 2px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 600; }
 </style>
@@ -143,7 +112,6 @@ def formatta_data(data_str):
     except: return data_str
 
 def get_badge(n):
-    """ Restituisce un carattere Unicode nativo compatibile con i menu Streamlit senza usare HTML """
     if n <= 0: return ""
     badges = ["❶","❷","❸","❹","❺","❻","❼","❽","❾","❿"]
     return f" {badges[n-1]}" if n <= 10 else f" ({n})"
@@ -237,13 +205,17 @@ def get_progetti_risorsa(id_risorsa, df_alloc, df_comm):
         nodi.append(f"{nome_c} ({a['Impegno_%']}%)")
     return " | ".join(nodi)
 
-# --- INIZIALIZZAZIONE SESSION STATE ---
+# --- INIZIALIZZAZIONE SESSION STATE E FIX CACHE ---
 if "df_risorse" not in st.session_state or "df_allocazioni" not in st.session_state:
     res, comm, alloc, ts = genera_dati_strutturali()
     st.session_state.df_risorse = res
     st.session_state.df_commesse = comm
     st.session_state.df_allocazioni = alloc
     st.session_state.df_timesheet = ts
+
+# MIGRATORE DATI IN CACHE (Risolve il KeyError Data_Inizio_Progetto)
+if 'Data_Inizio' in st.session_state.df_timesheet.columns:
+    st.session_state.df_timesheet.rename(columns={'Data_Inizio': 'Data_Inizio_Progetto'}, inplace=True)
 
 if "pending_approvals" not in st.session_state: st.session_state.pending_approvals = []
 if "pending_allocations" not in st.session_state: st.session_state.pending_allocations = []
@@ -275,58 +247,71 @@ def analizza_testo_llm(testo, api_key):
         return fasi, competenze_trovate, None
     
     prompt = f"""
-    Sei un Allocation Advisor AI per un gestionale IT.
-    ANALIZZA il seguente testo. SE non c'entra nulla con lo sviluppo software/IT (es. è un saluto "ciao", una ricetta, o ti chiede di costruire una diga), restituisci SOLO ED ESCLUSIVAMENTE questo JSON:
+    Sei un AI specializzata in IT Project Management.
+    ANALIZZA il seguente testo. SE la richiesta NON riguarda lo sviluppo software o l'IT (es. saluti, ricette, dighe, discorsi futili), restituisci QUESTO ESATTO JSON DI ERRORE:
     {{"errore": "Input non pertinente. Inserire un brief di progetto software valido."}}
     
-    ALTRIMENTI, estrai una Work Breakdown Structure (WBS) e restituisci SOLO un JSON valido (senza blocchi markdown) con questa struttura:
+    ALTRIMENTI, estrai le fasi del progetto e restituisci SOLO ED ESCLUSIVAMENTE un JSON valido (senza altre parole o formattazioni Markdown):
     {{
         "fasi": [
-            {{"Fase": "Nome fase tecnica", "Skill": "Tecnologia principale", "Giorni": 20}}
+            {{"Fase": "Descrizione", "Skill": "Tecnologia", "Giorni": 20}}
         ],
         "competenze": ["Tecnologia1", "Tecnologia2"]
     }}
-    Brief: {testo}
+    
+    Testo da analizzare: {testo}
     """
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}
         response = requests.post(url, headers=headers, json=payload)
-        txt = response.json()["choices"][0]["message"]["content"]
-        match = re.search(r'\{.*\}', txt, re.DOTALL)
-        dati = json.loads(match.group(0)) if match else json.loads(txt)
         
+        if response.status_code != 200:
+            return [], [], f"Errore API Groq (Codice {response.status_code}): Controllare validità Chiave API o limiti Rate Limit."
+            
+        txt = response.json()["choices"][0]["message"]["content"]
+        # Pulisce eventuali markdown sfuggiti
+        txt = txt.replace("```json", "").replace("```", "").strip()
+        
+        dati = json.loads(txt)
         if "errore" in dati: return [], [], dati["errore"]
         return dati.get("fasi", []), dati.get("competenze", []), None
+    except json.JSONDecodeError:
+        return [], [], "Il modello AI non ha generato un JSON valido. Riprovare."
     except Exception as e:
-        return [], [], f"Errore di comunicazione AI: {e}"
+        return [], [], f"Errore di sistema AI: {str(e)}"
 
 def parse_chatbot_intent_llm(prompt, df, api_key):
     lista_nomi = ", ".join(df['Nome'].tolist())
-    system_prompt = f"""Sei Smart Assistant. Rispondi SOLO in JSON senza testo aggiuntivo. Nomi: {lista_nomi}
+    system_prompt = f"""Sei uno Smart Assistant. Rispondi SOLO in formato JSON, senza alcun testo fuori dal JSON. Database Nomi: {lista_nomi}
     1. ALLOCARE: {{"azione": "alloca", "nome": "Nome Cognome", "percentuale": 50, "cliente": "ID_Commessa", "messaggio_riepilogo": "Allocazione..."}}
     2. PROMUOVERE: {{"azione": "promuovi", "nome": "Nome Cognome", "nuova_seniority": "Senior", "messaggio_riepilogo": "Upgrade..."}}
-    3. ALTRO (Testo non valido/Saluti): {{"azione": "errore", "messaggio_riepilogo": "Comandi non validi. Specificare un'azione di allocazione o promozione per le risorse."}}"""
+    3. ALTRO (Testo non valido/Saluti): {{"azione": "errore", "messaggio_riepilogo": "Comando non riconosciuto. Specificare se allocare o promuovere una risorsa in anagrafica."}}"""
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}], "temperature": 0.1}
         response = requests.post(url, headers=headers, json=payload)
+        
+        if response.status_code != 200:
+            return None, f"Errore API Groq ({response.status_code}). Verifica validità o limiti API Key."
+
         txt = response.json()["choices"][0]["message"]["content"]
-        match = re.search(r'\{.*\}', txt, re.DOTALL)
-        dati = json.loads(match.group(0)) if match else json.loads(txt)
+        txt = txt.replace("```json", "").replace("```", "").strip()
+        
+        dati = json.loads(txt)
         if dati.get("azione") == "errore": return None, dati.get("messaggio_riepilogo")
         if dati.get("azione") == "alloca": return {"type": "alloca", "nome": dati.get("nome"), "perc": dati.get("percentuale", 100), "cliente": dati.get("cliente", "N/D"), "desc": dati.get("messaggio_riepilogo")}, None
         if dati.get("azione") == "promuovi": return {"type": "promuovi", "nome": dati.get("nome"), "nuova_sen": dati.get("nuova_seniority"), "desc": dati.get("messaggio_riepilogo")}, None
         return None, "Errore Parser LLM."
-    except Exception as e: return None, f"Errore AI: Inserire chiave API valida."
+    except Exception as e: return None, f"Errore AI: Inserire chiave API valida o controllare connessione."
 
 def esegui_azione_chatbot(dati_finali):
     df_ris = st.session_state.df_risorse
     idx_ris = df_ris[df_ris['Nome'] == dati_finali['nome']].index
     if len(idx_ris) == 0:
-        st.session_state.chat_msgs.append({"role": "assistant", "content": "Risorsa non trovata."})
+        st.session_state.chat_msgs.append({"role": "assistant", "content": "Risorsa non trovata nell'anagrafica Master."})
         st.session_state.bot_action = None
         return
     id_risorsa = df_ris.iloc[idx_ris[0]]['ID']
@@ -388,48 +373,28 @@ if ruolo_utente == "Resource Allocation Engine":
 
         num_alert = len(overbooked) + len(commesse_loss) + len(st.session_state.pending_allocations)
         
-        # Struttura Gerarchica Sidebar
-        nav_tree = {
-            "Homepage": [],
-            "Project and Resources Management": ["Notification and Alert", "Project Hub", "Resource Allocation"],
-            "Staffing Intelligence": ["Allocation Advisor", "Build your Team", "Profile Explorer"],
-            "Data Hub": ["Project Portfolio", "Resource Master Data"]
-        }
+        # --- MENU NATIVO (NO DELAY) ---
+        main_tab = st.sidebar.radio(
+            "Struttura Navigazione", 
+            [f"Homepage", f"Project and Resources Management{get_badge(num_alert)}", "Staffing Intelligence", "Data Hub"],
+            label_visibility="collapsed"
+        )
         
-        if 'active_macro' not in st.session_state: st.session_state.active_macro = "Homepage"
-        if 'active_sub' not in st.session_state: st.session_state.active_sub = None
+        pagina_pm = "Homepage"
+        if "Project and Resources" in main_tab:
+            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+            sub_tab = st.sidebar.radio("Sottomenu", [f"Notification and Alert{get_badge(num_alert)}", "Project Hub", "Resource Allocation"], label_visibility="collapsed")
+            pagina_pm = "Notification and Alert" if "Notification" in sub_tab else ("Project Hub" if "Project" in sub_tab else "Resource Allocation")
+        elif "Staffing Intelligence" in main_tab:
+            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+            sub_tab = st.sidebar.radio("Sottomenu", ["Allocation Advisor", "Build your Team", "Profile Explorer"], label_visibility="collapsed")
+            pagina_pm = sub_tab
+        elif "Data Hub" in main_tab:
+            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+            sub_tab = st.sidebar.radio("Sottomenu", ["Project Portfolio", "Resource Master Data"], label_visibility="collapsed")
+            pagina_pm = sub_tab
 
-        mapping = {}
-        for macro, subs in nav_tree.items():
-            d_macro = macro + (get_badge(num_alert) if macro=="Project and Resources Management" else "")
-            mapping[d_macro] = (macro, None)
-            if st.session_state.active_macro == macro:
-                for sub in subs:
-                    # Uso spazi unificatori Unicode per indentazione visiva pulita
-                    d_sub = f"  {sub}" + (get_badge(num_alert) if sub=="Notification and Alert" else "")
-                    mapping[d_sub] = (macro, sub)
-
-        # Calcolo dell'indice corrente per evitare che il radio button perda il puntatore
-        def_key = st.session_state.active_macro + (get_badge(num_alert) if st.session_state.active_macro=="Project and Resources Management" else "")
-        if st.session_state.active_sub:
-            for k, (mac, sub) in mapping.items():
-                if sub == st.session_state.active_sub: def_key = k
-
-        try: default_idx = list(mapping.keys()).index(def_key)
-        except ValueError: default_idx = 0
-
-        selected_display = st.sidebar.radio("Struttura Navigazione", list(mapping.keys()), index=default_idx, label_visibility="collapsed")
-        selected_macro, selected_sub = mapping[selected_display]
-
-        if selected_macro != st.session_state.active_macro:
-            st.session_state.active_macro = selected_macro
-            st.session_state.active_sub = nav_tree[selected_macro][0] if nav_tree[selected_macro] else None
-            st.rerun()
-        elif selected_sub != st.session_state.active_sub and selected_sub is not None:
-            st.session_state.active_sub = selected_sub
-            
-        pagina_pm = st.session_state.active_sub if st.session_state.active_sub else st.session_state.active_macro
-            
+        st.sidebar.markdown("<br>", unsafe_allow_html=True)
         if st.sidebar.button("Termina Sessione Corrente"): st.session_state.pm_logged_in = False; st.rerun()
 
         # --- CONTENUTI PAGINE ---
@@ -470,16 +435,21 @@ if ruolo_utente == "Resource Allocation Engine":
                 st.success("Nessun conflitto logico rilevato. Parametri operativi entro i limiti di sistema.")
             else:
                 if not overbooked.empty:
+                    st.markdown("<h3 style='color: #EF4444;'>🔴 Allarmi di Overbooking Critico</h3>", unsafe_allow_html=True)
                     for _, r in overbooked.iterrows():
                         match = df_risorse[df_risorse['ID'] == r['ID_Risorsa']]
                         nome_ris = match['Nome'].values[0] if not match.empty else r['ID_Risorsa']
-                        st.markdown(f"<div class='alert-box alert-red'><b>[Overbooking Rilevato]</b> Il record {nome_ris} ({r['ID_Risorsa']}) è allocato oltre il limite ({r['Impegno_%']}%). Richiesto intervento in Resource Allocation.</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='alert-box alert-red'>Il record <b>{nome_ris}</b> ({r['ID_Risorsa']}) è allocato oltre il limite ({r['Impegno_%']}%). Richiesto intervento in Resource Allocation.</div>", unsafe_allow_html=True)
+                
                 if len(commesse_loss) > 0:
+                    st.markdown("<h3 style='color: #F59E0B; margin-top:20px;'>🟠 Allarmi Erosione Margine</h3>", unsafe_allow_html=True)
                     for _, c in commesse_loss.iterrows():
-                        st.markdown(f"<div class='alert-box alert-orange'><b>[Warning Budget]</b> La commessa {c['ID_Commessa']} ha superato il budget stimato. Costo Consuntivato: {formatta_valuta(c['Costo_Tot_Riga'])} | Budget: {formatta_valuta(c['Budget'])}.</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='alert-box alert-orange'>La commessa <b>{c['ID_Commessa']}</b> ha superato il budget stimato.<br>Costo Consuntivato: <b>{formatta_valuta(c['Costo_Tot_Riga'])}</b> | Budget Originale: <b>{formatta_valuta(c['Budget'])}</b>.</div>", unsafe_allow_html=True)
+                
                 if len(st.session_state.pending_allocations) > 0:
+                    st.markdown("<h3 style='color: #3B82F6; margin-top:20px;'>🔵 Richieste in Sospeso (Workspace)</h3>", unsafe_allow_html=True)
                     for req in st.session_state.pending_allocations:
-                        st.markdown(f"<div class='alert-box' style='border-left-color: #3B82F6;'><b>[Richiesta in Sospeso]</b> L'utente {req['Nome']} ha richiesto l'allocazione al {req['Occupazione']}% sul progetto {req['Progetto']}. Gestibile in Resource Allocation.</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='alert-box alert-blue'>L'utente <b>{req['Nome']}</b> ha richiesto l'allocazione al {req['Occupazione']}% sul progetto {req['Progetto']}. (Autorizzabile in Resource Allocation).</div>", unsafe_allow_html=True)
 
         elif pagina_pm == "Project Hub":
             st.markdown("<h1 class='gradient-title'>Project Hub</h1>", unsafe_allow_html=True)
@@ -654,13 +624,13 @@ if ruolo_utente == "Resource Allocation Engine":
                         sat = get_saturazione(r_id, df_allocazioni)
                         prog_att = get_progetti_risorsa(r_id, df_allocazioni, df_commesse)
                         
-                        html_grid += f"<div class='scheduling-row'><div class='scheduling-name'>{nome}<br><span style='font-size:11px; color:#8B949E; font-weight:400;'>{prog_att}</span></div>"
+                        html_grid += f"<div class='scheduling-row'><div class='scheduling-name'>{nome}<br><span style='font-size:11px; color:var(--kpi-text-sub); font-weight:400;'>{prog_att}</span></div>"
                         for d in giorni_del_mese:
-                            if d.weekday() >= 5: bg = "#21262D"
+                            if d.weekday() >= 5: bg = "#21262D" if st.get_option("theme.base") == "dark" else "#E5E7EB"
                             elif sat == 0: bg = "#EF4444"
                             elif sat < 100: bg = "#F59E0B"
                             else: bg = "#10B981"
-                            html_grid += f"<div class='scheduling-cell' style='background:{bg};'></div>"
+                            html_grid += f"<div class='scheduling-cell' style='background:{bg}; color: transparent;'>.</div>"
                         html_grid += "</div>"
                     html_grid += "</div></div>"
                     st.markdown(html_grid, unsafe_allow_html=True)
@@ -676,7 +646,7 @@ if ruolo_utente == "Resource Allocation Engine":
                                 prog_att = get_progetti_risorsa(r_id, df_allocazioni, df_commesse)
                                 
                                 st.markdown(f"<h5 style='text-align:center; color:var(--text-color); margin-bottom:0px;'>{nome}</h5>", unsafe_allow_html=True)
-                                st.markdown(f"<p style='text-align:center; font-size:11px; color:#8B949E; margin-top:2px; margin-bottom:10px;'>{prog_att}</p>", unsafe_allow_html=True)
+                                st.markdown(f"<p style='text-align:center; font-size:12px; color:var(--kpi-text-sub); margin-top:2px; margin-bottom:10px;'>{prog_att}</p>", unsafe_allow_html=True)
                                 
                                 html_cal = "<div style='display:grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 30px;'>"
                                 for g in ["Lu","Ma","Me","Gi","Ve","Sa","Do"]: html_cal += f"<div style='text-align:center; font-size:10px;'>{g}</div>"
@@ -684,7 +654,7 @@ if ruolo_utente == "Resource Allocation Engine":
                                     for day in week:
                                         if day.month != mese_c: html_cal += "<div></div>"
                                         else:
-                                            if day.weekday() >= 5: bg = "#21262D"
+                                            if day.weekday() >= 5: bg = "#21262D" if st.get_option("theme.base") == "dark" else "#E5E7EB"
                                             elif sat == 0: bg = "#EF4444"
                                             elif sat < 100: bg = "#F59E0B"
                                             else: bg = "#10B981"
@@ -843,44 +813,24 @@ elif ruolo_utente == "Talent Management":
                 else: 
                     st.error("Credenziali Errate. Usare hr / hr123")
     else:
-        # Struttura Gerarchica Sidebar HR (Menu Scalare)
-        hr_nav_tree = {
-            "Homepage": [],
-            "Talent Lifecycle": ["Talent Onboarding", "Career Development"],
-            "HR Operations": ["ERP Integration"],
-            "Data Hub": ["Data Repository"]
-        }
+        # --- MENU NATIVO HR (NO DELAY) ---
+        hr_main = st.sidebar.radio("Struttura Navigazione", ["Homepage", "Talent Lifecycle", "HR Operations", "Data Hub"], label_visibility="collapsed")
         
-        if 'hr_active_macro' not in st.session_state: st.session_state.hr_active_macro = "Homepage"
-        if 'hr_active_sub' not in st.session_state: st.session_state.hr_active_sub = None
-
-        hr_mapping = {}
-        for macro, subs in hr_nav_tree.items():
-            hr_mapping[macro] = (macro, None)
-            if st.session_state.hr_active_macro == macro:
-                for sub in subs:
-                    hr_mapping[f"  {sub}"] = (macro, sub)
-
-        def_key_hr = st.session_state.hr_active_macro
-        if st.session_state.hr_active_sub:
-            for k, (mac, sub) in hr_mapping.items():
-                if sub == st.session_state.hr_active_sub: def_key_hr = k
-
-        try: default_idx_hr = list(hr_mapping.keys()).index(def_key_hr)
-        except ValueError: default_idx_hr = 0
-
-        selected_display = st.sidebar.radio("Struttura Navigazione", list(hr_mapping.keys()), index=default_idx_hr, label_visibility="collapsed")
-        selected_macro, selected_sub = hr_mapping[selected_display]
-
-        if selected_macro != st.session_state.hr_active_macro:
-            st.session_state.hr_active_macro = selected_macro
-            st.session_state.hr_active_sub = hr_nav_tree[selected_macro][0] if hr_nav_tree[selected_macro] else None
-            st.rerun()
-        elif selected_sub != st.session_state.hr_active_sub and selected_sub is not None:
-            st.session_state.hr_active_sub = selected_sub
-            
-        pagina_hr = st.session_state.hr_active_sub if st.session_state.hr_active_sub else st.session_state.hr_active_macro
+        pagina_hr = "Homepage"
+        if "Talent Lifecycle" in hr_main:
+            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+            s_tab = st.sidebar.radio("Sottomenu", ["Talent Onboarding", "Career Development"], label_visibility="collapsed")
+            pagina_hr = s_tab
+        elif "HR Operations" in hr_main:
+            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+            s_tab = st.sidebar.radio("Sottomenu", ["ERP Integration"], label_visibility="collapsed")
+            pagina_hr = s_tab
+        elif "Data Hub" in hr_main:
+            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+            s_tab = st.sidebar.radio("Sottomenu", ["Data Repository"], label_visibility="collapsed")
+            pagina_hr = s_tab
         
+        st.sidebar.markdown("<br>", unsafe_allow_html=True)
         if st.sidebar.button("Termina Sessione"): st.session_state.hr_logged_in = False; st.rerun()
 
         if pagina_hr == "Homepage":
