@@ -71,7 +71,6 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    /* Ombra forzata per Talent Workspace */
     .kpi-card-shadow {
         box-shadow: 0 8px 30px rgba(0,0,0,0.15) !important;
     }
@@ -102,7 +101,6 @@ st.markdown("""
         padding: 10px 20px;
     }
 
-    /* CSS per la vista Scheduling Assistant */
     .scheduling-container {
         overflow-x: auto;
         padding-bottom: 15px;
@@ -151,6 +149,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- HELPER FORMATTAZIONE ---
+def formatta_valuta(valore):
+    try: return f"€ {float(valore):,.0f}"
+    except: return "€ 0"
+
+def formatta_data(data_str):
+    if not data_str: return ""
+    try:
+        if isinstance(data_str, str): return datetime.strptime(data_str, "%Y-%m-%d").strftime("%d-%m-%Y")
+        else: return data_str.strftime("%d-%m-%Y")
+    except: return data_str
+
+def get_circled_number(n):
+    if n <= 0: return ""
+    circled = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"]
+    if n <= 10: return f" {circled[n-1]}"
+    return f" ({n})"
+
 def applica_tema_plotly(fig):
     fig.update_layout(
         plot_bgcolor='rgba(0,0,0,0)', 
@@ -159,25 +175,6 @@ def applica_tema_plotly(fig):
         margin=dict(l=20, r=20, t=40, b=20)
     )
     return fig
-
-# --- HELPER FORMATTAZIONE ---
-def formatta_valuta(valore):
-    """Formatta i numeri in valuta con separatore migliaia (es: € 15,000)"""
-    try:
-        return f"€ {float(valore):,.0f}"
-    except:
-        return "€ 0"
-
-def formatta_data(data_str):
-    """Formatta date YYYY-MM-DD in DD-MM-YYYY"""
-    if not data_str: return ""
-    try:
-        if isinstance(data_str, str):
-            return datetime.strptime(data_str, "%Y-%m-%d").strftime("%d-%m-%Y")
-        else:
-            return data_str.strftime("%d-%m-%Y")
-    except:
-        return data_str
 
 # --- STRUTTURA DATI RELAZIONALE ---
 @st.cache_data
@@ -241,7 +238,7 @@ def genera_dati_strutturali():
         if num_commesse > 0:
             commesse_assegnate = random.sample(df_commesse['ID_Commessa'].tolist(), k=num_commesse)
             for c_id in commesse_assegnate:
-                perc = random.choice([50, 100, 150]) # Inclusi overbooking intenzionali
+                perc = random.choice([50, 100, 150])
                 allocazioni.append({"ID_Risorsa": id_risorsa, "ID_Commessa": c_id, "Impegno_%": perc})
                 giorni_spesi = random.randint(5, 45)
                 timesheet.append({
@@ -297,6 +294,9 @@ if "current_it_user" not in st.session_state: st.session_state.current_it_user =
 def analizza_testo_llm(testo, api_key):
     if not api_key:
         testo_lower = testo.lower()
+        if "ciao" in testo_lower or "diga" in testo_lower or "torta" in testo_lower:
+            return [], [], "Testo non pertinente. Inserire un brief di progetto software valido."
+        
         competenze_trovate = []
         regole = {"react": ("React", 15), "node": ("Node.js", 20), "python": ("Python", 18), "java": ("Java", 25), "aws": ("AWS", 10), "sql": ("SQL", 8), "typescript": ("TypeScript", 10)}
         fasi = []
@@ -304,14 +304,17 @@ def analizza_testo_llm(testo, api_key):
             if key in testo_lower:
                 competenze_trovate.append(skill)
                 fasi.append({"Fase": f"Sviluppo {skill}", "Skill": skill, "Giorni": giorni})
-        return fasi, competenze_trovate
+        return fasi, competenze_trovate, None
     
     prompt = f"""
-    Analizza il seguente brief architetturale ed estrai una Work Breakdown Structure (WBS).
-    Restituisci SOLO un JSON valido con questa struttura, senza markdown:
+    Sei un Allocation Advisor AI. Analizza il seguente brief architetturale per un progetto software/IT.
+    SE il brief è un saluto (es. "ciao"), una richiesta irrealistica (es. "costruisci una diga") o testo non pertinente all'IT, restituisci SOLO questo JSON esatto:
+    {{"errore": "Input non valido. Si prega di inserire un brief tecnologico pertinente."}}
+    
+    ALTRIMENTI, estrai una Work Breakdown Structure (WBS) e restituisci SOLO un JSON valido con questa struttura, senza markdown:
     {{
         "fasi": [
-            {{"Fase": "Nome fase", "Skill": "Tecnologia", "Giorni": stima_giorni_interi}}
+            {{"Fase": "Nome fase", "Skill": "Tecnologia", "Giorni": 15}}
         ],
         "competenze": ["Tecnologia1", "Tecnologia2"]
     }}
@@ -325,9 +328,11 @@ def analizza_testo_llm(testo, api_key):
         txt = response.json()["choices"][0]["message"]["content"]
         match = re.search(r'\{.*\}', txt, re.DOTALL)
         dati = json.loads(match.group(0)) if match else json.loads(txt)
-        return dati.get("fasi", []), dati.get("competenze", [])
-    except:
-        return [], []
+        
+        if "errore" in dati: return [], [], dati["errore"]
+        return dati.get("fasi", []), dati.get("competenze", []), None
+    except Exception as e:
+        return [], [], f"Errore di comunicazione AI: {e}"
 
 def fallback_simulatore_chatbot(prompt, df):
     prompt_l = prompt.lower()
@@ -353,7 +358,7 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     system_prompt = f"""Sei Smart Assistant. Rispondi SOLO in JSON senza testo aggiuntivo. Nomi: {lista_nomi}
     1. ALLOCARE: {{"azione": "alloca", "nome": "Nome Cognome", "percentuale": 50, "cliente": "ID_Commessa", "messaggio_riepilogo": "Allocazione..."}}
     2. PROMUOVERE: {{"azione": "promuovi", "nome": "Nome Cognome", "nuova_seniority": "Senior", "messaggio_riepilogo": "Upgrade..."}}
-    3. ALTRO: {{"azione": "errore", "messaggio_riepilogo": "Comandi non validi."}}"""
+    3. ALTRO: {{"azione": "errore", "messaggio_riepilogo": "Comandi non validi. Specificare se allocare o promuovere una risorsa."}}"""
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -412,8 +417,13 @@ if ruolo_utente == "Resource Allocation Engine":
     if not st.session_state.pm_logged_in:
         st.markdown("<h1 class='gradient-title'>Gateway Resource Allocation Engine</h1>", unsafe_allow_html=True)
         with st.form("login_pm_form"):
-            if st.form_submit_button("Esegui Login") and st.text_input("ID Utente")=="admin" and st.text_input("Credenziale", type="password")=="admin123":
-                st.session_state.pm_logged_in = True; st.rerun()
+            username = st.text_input("ID Utente")
+            password = st.text_input("Credenziale di Rete", type="password")
+            if st.form_submit_button("Esegui Login"):
+                if username == "admin" and password == "admin123":
+                    st.session_state.pm_logged_in = True; st.rerun()
+                else: 
+                    st.error("Credenziali non conformi.")
     else:
         # Pre-calcolo Allarmi per Notifiche
         sat_df = df_allocazioni.groupby('ID_Risorsa')['Impegno_%'].sum().reset_index() if not df_allocazioni.empty else pd.DataFrame()
@@ -428,31 +438,33 @@ if ruolo_utente == "Resource Allocation Engine":
             commesse_loss = analisi_budget[analisi_budget['Costo_Tot_Riga'] > analisi_budget['Budget']]
 
         num_alert = len(overbooked) + len(commesse_loss) + len(st.session_state.pending_allocations)
-        notif_badge = f" 🔴 ({num_alert})" if num_alert > 0 else ""
+        notif_badge = get_circled_number(num_alert)
 
-        # Struttura Gerarchica Sidebar
+        # Spaziatura per formattazione gerarchica visiva scalare
+        indent = "\u2003\u2003" 
+
         main_tab = st.sidebar.radio("Struttura Dati", [
-            ">> Homepage",
-            f">> Project and Resources Management{notif_badge}",
-            ">> Staffing Intelligence",
-            ">> Data Hub"
+            "Homepage",
+            "Project and Resources Management",
+            "Staffing Intelligence",
+            "Data Hub"
         ], label_visibility="collapsed")
 
         pagina_pm = "Homepage"
         if "Homepage" in main_tab: 
             pagina_pm = "Homepage"
         elif "Project and Resources Management" in main_tab:
-            sub_tab = st.sidebar.radio("Sotto-menu", [f"- Notification and Alert{notif_badge}", "- Project Hub", "- Resource Allocation"])
+            sub_tab = st.sidebar.radio("Sotto-menu", [f"{indent}Notification and Alert{notif_badge}", f"{indent}Project Hub", f"{indent}Resource Allocation"], label_visibility="collapsed")
             if "Notification" in sub_tab: pagina_pm = "Notification and Alert"
             elif "Project" in sub_tab: pagina_pm = "Project Hub"
             else: pagina_pm = "Resource Allocation"
         elif "Staffing Intelligence" in main_tab:
-            sub_tab = st.sidebar.radio("Sotto-menu", ["- Allocation Advisor", "- Build your Team", "- Profile Explorer"])
+            sub_tab = st.sidebar.radio("Sotto-menu", [f"{indent}Allocation Advisor", f"{indent}Build your Team", f"{indent}Profile Explorer"], label_visibility="collapsed")
             if "Allocation" in sub_tab: pagina_pm = "Allocation Advisor"
             elif "Build" in sub_tab: pagina_pm = "Build your Team"
             else: pagina_pm = "Profile Explorer"
         elif "Data Hub" in main_tab:
-            sub_tab = st.sidebar.radio("Sotto-menu", ["- Project Portfolio", "- Resource Master Data"])
+            sub_tab = st.sidebar.radio("Sotto-menu", [f"{indent}Project Portfolio", f"{indent}Resource Master Data"], label_visibility="collapsed")
             if "Portfolio" in sub_tab: pagina_pm = "Project Portfolio"
             else: pagina_pm = "Resource Master Data"
             
@@ -505,7 +517,7 @@ if ruolo_utente == "Resource Allocation Engine":
                         st.markdown(f"<div class='alert-box alert-orange'><b>[Warning Budget]</b> La commessa {c['ID_Commessa']} ha superato il budget stimato. Costo Consuntivato: {formatta_valuta(c['Costo_Tot_Riga'])} | Budget: {formatta_valuta(c['Budget'])}.</div>", unsafe_allow_html=True)
                 if len(st.session_state.pending_allocations) > 0:
                     for req in st.session_state.pending_allocations:
-                        st.markdown(f"<div class='alert-box' style='border-color: #3B82F6;'><b>[Richiesta in Sospeso]</b> L'utente {req['Nome']} ha richiesto l'allocazione al {req['Occupazione']}% sul progetto {req['Progetto']}. Gestibile in Resource Allocation.</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='alert-box' style='border-left-color: #3B82F6;'><b>[Richiesta in Sospeso]</b> L'utente {req['Nome']} ha richiesto l'allocazione al {req['Occupazione']}% sul progetto {req['Progetto']}. Gestibile in Resource Allocation.</div>", unsafe_allow_html=True)
 
         elif pagina_pm == "Project Hub":
             st.markdown("<h1 class='gradient-title'>Project Hub</h1>", unsafe_allow_html=True)
@@ -578,20 +590,27 @@ if ruolo_utente == "Resource Allocation Engine":
             st.markdown("<h1 class='gradient-title'>Allocation Advisor</h1>", unsafe_allow_html=True)
             
             prompt_random = [
-                "Implementazione piattaforma E-Commerce B2C moderna. Architettura: React JS per frontend utente, servizi Backend in Node.js su infrastruttura Cloud AWS, Database SQL per le transazioni.",
-                "Processo di migrazione dell'infrastruttura su Cloud AWS. Necessari framework Kubernetes e Docker. Il layer applicativo dovrà essere ottimizzato in linguaggio Python.",
-                "Design e realizzazione App Mobile in ambito FinTech. Linguaggio TypeScript con framework React Native. Struttura microservizi gestita in Java."
+                "Sviluppo di un sistema ERP Cloud-native per la logistica aziendale. Il frontend deve essere realizzato interamente in React utilizzando TypeScript. Il backend richiede una solida architettura a microservizi sviluppata in Go e Node.js. È fondamentale l'implementazione di pipeline CI/CD con GitHub Actions, containerizzazione tramite Docker e orchestrazione Kubernetes su AWS. Necessario anche un esperto per l'ottimizzazione del database PostgreSQL e l'analisi predittiva (Python/Pandas).",
+                "Rifacimento completo del portale di Home Banking e transazioni sicure. La sicurezza è la priorità: richiesto framework Angular per la web app responsive e Java (Spring Boot) per i processi core di transazione. Il team deve includere DevOps Engineer per la gestione dell'infrastruttura Terraform su cloud AWS, oltre a Data Analyst qualificati per la reportistica direzionale tramite SQL e PowerBI.",
+                "Creazione di una piattaforma IoT Edge per il monitoraggio in tempo reale di macchinari industriali. I dati provenienti dai sensori verranno raccolti tramite script Python e processati con algoritmi avanzati di Machine Learning (Scikit-learn). La dashboard di controllo per gli operatori sarà sviluppata in Vue.js. L'infrastruttura backend poggerà completamente su servizi cloud AWS serverless (Lambda e DynamoDB).",
+                "Progetto di modernizzazione e migrazione di un CRM Legacy. Migrazione massiva dei dati storici in SQL verso un nuovo database documentale NoSQL. Il frontend applicativo sarà ricostruito da zero sfruttando React. Serve un Business Analyst per la mappatura dei processi BPMN e la gestione dei requisiti tecnici, affiancato da un Project Manager specializzato in Agile/Scrum per coordinare gli sprint di sviluppo.",
+                "Sviluppo di una piattaforma e-learning video-based ad alto traffico. Il backend per la gestione dello streaming e degli utenti sarà scritto in Node.js con storage distribuito su AWS S3. Il client web necessita di competenze avanzate in HTML/CSS e TypeScript. È richiesta inoltre la presenza di un Data Scientist che si occuperà di creare il motore di raccomandazione dei corsi basato in Python e logiche SQL complesse."
             ]
+            
             if "saved_testo_brief" not in st.session_state: st.session_state.saved_testo_brief = ""
             if st.button("Generazione automatica di prompt per fase Test"):
                 st.session_state.saved_testo_brief = random.choice(prompt_random)
                 
-            testo = st.text_area("Input Requirement (Descrizione del progetto):", value=st.session_state.saved_testo_brief, height=120)
+            testo = st.text_area("Input Requirement (Descrizione del progetto):", value=st.session_state.saved_testo_brief, height=140)
             st.session_state.saved_testo_brief = testo
 
             if st.button("Simula Scenario e Trova Copertura", type="primary"):
-                fasi, skill_richieste = analizza_testo_llm(testo, st.session_state.groq_api_key)
-                if not fasi: st.warning("Non è stato possibile mappare i requisiti. Inserire tecnologie riconoscibili (es. React, Node, Python).")
+                fasi, skill_richieste, err_msg = analizza_testo_llm(testo, st.session_state.groq_api_key)
+                
+                if err_msg:
+                    st.error(err_msg)
+                elif not fasi: 
+                    st.warning("Non è stato possibile mappare i requisiti. Inserire tecnologie riconoscibili (es. React, Node, Python).")
                 else:
                     st.session_state.wbs_data = pd.DataFrame(fasi)
                     team = []
@@ -641,7 +660,7 @@ if ruolo_utente == "Resource Allocation Engine":
                 oggi = datetime.today()
                 mese_offset = st.session_state.get('team_cal_idx', 0)
                 
-                # Setup navigazione mesi (no datetime limits, just arithmetic)
+                # Setup navigazione date
                 anno_c = oggi.year
                 mese_c = oggi.month + mese_offset
                 while mese_c > 12:
@@ -718,7 +737,6 @@ if ruolo_utente == "Resource Allocation Engine":
 
             df_view['Delta Margin'] = df_view['Budget'] - df_view['Costo_Attuale']
             
-            # Applicazione della formattazione Euro direttamente nel DataFrame View per maggiore robustezza
             df_view_formatted = df_view[['ID_Commessa', 'Cliente', 'Nome', 'Budget', 'Costo_Attuale', 'Delta Margin', 'Stato']].copy()
             df_view_formatted['Budget'] = df_view_formatted['Budget'].apply(formatta_valuta)
             df_view_formatted['Costo_Attuale'] = df_view_formatted['Costo_Attuale'].apply(formatta_valuta)
@@ -779,7 +797,7 @@ elif ruolo_utente == "Talent Workspace":
         st.markdown("<h1 class='gradient-title'>Gateway di Autenticazione Personale</h1>", unsafe_allow_html=True)
         with st.form("login_it_form"):
             utente_selezionato = st.selectbox("Selettore Identità", df_risorse['Nome'].tolist())
-            password_it = st.text_input("Codice Sicurezza", type="password", help="Codice Base: dev123")
+            password_it = st.text_input("Codice Sicurezza", type="password")
             if st.form_submit_button("Esegui Login"):
                 if password_it == "dev123":
                     st.session_state.it_logged_in, st.session_state.current_it_user = True, utente_selezionato
@@ -849,27 +867,33 @@ elif ruolo_utente == "Talent Management":
     if not st.session_state.hr_logged_in:
         st.markdown("<h1 class='gradient-title'>Gateway Amministrativo HR</h1>", unsafe_allow_html=True)
         with st.form("login_hr"):
-            if st.form_submit_button("Esegui Login") and st.text_input("Codice Reparto")=="hr" and st.text_input("Password Sicurezza", type="password")=="hr123":
-                st.session_state.hr_logged_in = True; st.rerun()
+            username = st.text_input("Identificativo Reparto", help="hr")
+            password = st.text_input("Chiave Accesso Struttura", type="password", help="hr123")
+            if st.form_submit_button("Esegui Login"):
+                if username == "hr" and password == "hr123":
+                    st.session_state.hr_logged_in = True; st.rerun()
+                else: 
+                    st.error("Credenziali Errate.")
     else:
         st.sidebar.markdown("### Moduli Operativi")
+        indent = "\u2003\u2003"
         hr_main = st.sidebar.radio("Struttura Navigazione", [
-            ">> Homepage", 
-            ">> Talent Lifecycle", 
-            ">> HR Operations", 
-            ">> Data Hub"
+            "Homepage", 
+            "Talent Lifecycle", 
+            "HR Operations", 
+            "Data Hub"
         ], label_visibility="collapsed")
         
         pagina_hr = "Homepage"
         if "Homepage" in hr_main: pagina_hr = "Homepage"
         elif "Talent Lifecycle" in hr_main: 
-            s_tab = st.sidebar.radio("Sotto-menu", ["- Talent Onboarding", "- Career Development"])
+            s_tab = st.sidebar.radio("Sotto-menu", [f"{indent}Talent Onboarding", f"{indent}Career Development"], label_visibility="collapsed")
             pagina_hr = "Talent Onboarding" if "Onboarding" in s_tab else "Career Development"
         elif "HR Operations" in hr_main: 
-            s_tab = st.sidebar.radio("Sotto-menu", ["- ERP Integration"])
+            s_tab = st.sidebar.radio("Sotto-menu", [f"{indent}ERP Integration"], label_visibility="collapsed")
             pagina_hr = "ERP Integration"
         elif "Data Hub" in hr_main: 
-            s_tab = st.sidebar.radio("Sotto-menu", ["- Data Repository"])
+            s_tab = st.sidebar.radio("Sotto-menu", [f"{indent}Data Repository"], label_visibility="collapsed")
             pagina_hr = "Data Repository"
         
         if st.sidebar.button("Termina Sessione"): st.session_state.hr_logged_in = False; st.rerun()
@@ -942,9 +966,9 @@ elif ruolo_utente == "Talent Management":
             st.markdown("<br>", unsafe_allow_html=True)
             c1, c2 = st.columns([1, 1])
             with c1:
-                st.download_button("Scarica Tracciato (.CSV)", data=df_risorse.to_csv(index=False).encode('utf-8'), file_name='export_hr_erp.csv', use_container_width=True)
+                st.download_button("Download", data=df_risorse.to_csv(index=False).encode('utf-8'), file_name='export_hr_erp.csv', use_container_width=True)
             with c2:
-                up = st.file_uploader("Upload Massivo da Gestionale", type=['csv'], label_visibility="collapsed")
+                up = st.file_uploader("Upload", type=['csv'], label_visibility="collapsed")
                 if up: st.success("Decodifica file avvenuta con successo. Dati pronti al merge.")
 
         elif pagina_hr == "Data Repository":
