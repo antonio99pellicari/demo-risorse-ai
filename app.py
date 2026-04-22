@@ -143,7 +143,6 @@ def formatta_data(data_str):
     except: return data_str
 
 def get_badge(n):
-    """ Restituisce un carattere Unicode nativo compatibile con i menu Streamlit senza usare HTML """
     if n <= 0: return ""
     badges = ["❶","❷","❸","❹","❺","❻","❼","❽","❾","❿"]
     return f" {badges[n-1]}" if n <= 10 else f" ({n})"
@@ -254,36 +253,38 @@ if "pending_allocations" not in st.session_state: st.session_state.pending_alloc
 if "team_cal_idx" not in st.session_state: st.session_state.team_cal_idx = 0
 if "chat_msgs" not in st.session_state: st.session_state.chat_msgs = [{"role": "assistant", "content": "Smart Assistant inizializzato. Pronto a processare richieste (Es: 'Alloca Marco Rossi su PRJ-001 al 50%')"}]
 if "bot_action" not in st.session_state: st.session_state.bot_action = None
-if "groq_api_key" not in st.session_state: st.session_state.groq_api_key = "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"
+
+# GESTIONE SICURA DELLA API KEY (ESCLUSIVAMENTE TRAMITE ST.SECRETS)
+if "groq_api_key" not in st.session_state:
+    try:
+        st.session_state.groq_api_key = st.secrets["GROQ_API_KEY"]
+    except:
+        st.session_state.groq_api_key = ""
+
 if "pm_logged_in" not in st.session_state: st.session_state.pm_logged_in = False
 if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
 if "hr_logged_in" not in st.session_state: st.session_state.hr_logged_in = False
 if "current_it_user" not in st.session_state: st.session_state.current_it_user = None
 
+# SPOSTATO QUI: Assegno le variabili locali SOLO DOPO che il migratore ha fatto il suo lavoro
+df_risorse = st.session_state.df_risorse
+df_commesse = st.session_state.df_commesse
+df_allocazioni = st.session_state.df_allocazioni
+df_timesheet = st.session_state.df_timesheet
+
 # ==========================================
-# 2. MOTORI AI E COPILOT
+# 2. MOTORI AI E COPILOT (SOLO LLM)
 # ==========================================
 def analizza_testo_llm(testo, api_key):
     if not api_key:
-        testo_lower = testo.lower()
-        if any(x in testo_lower for x in ["ciao", "diga", "torta", "mare", "sole"]):
-            return [], [], "Input non pertinente. Inserire un brief IT strutturato."
-        
-        competenze_trovate = []
-        regole = {"react": ("React", 15), "node": ("Node.js", 20), "python": ("Python", 18), "java": ("Java", 25), "aws": ("AWS", 10), "sql": ("SQL", 8), "typescript": ("TypeScript", 10), "go": ("Go", 20), "kubernetes": ("Kubernetes", 15)}
-        fasi = []
-        for key, (skill, giorni) in regole.items():
-            if key in testo_lower:
-                competenze_trovate.append(skill)
-                fasi.append({"Fase": f"Sviluppo {skill}", "Skill": skill, "Giorni": giorni})
-        return fasi, competenze_trovate, None
+        return [], [], "🔑 Nessuna API Key trovata. Inserisci la tua GROQ_API_KEY nei Secrets di Streamlit Cloud per attivare l'Intelligenza Artificiale."
     
     prompt = f"""
-    Sei un AI specializzata in IT Project Management.
+    Sei un'AI specializzata in IT Project Management.
     ANALIZZA il seguente testo. SE la richiesta NON riguarda lo sviluppo software o l'IT (es. saluti, ricette, dighe, discorsi futili), restituisci QUESTO ESATTO JSON DI ERRORE:
     {{"errore": "Input non pertinente. Inserire un brief di progetto software valido."}}
     
-    ALTRIMENTI, estrai le fasi del progetto e restituisci SOLO ED ESCLUSIVAMENTE un JSON valido (senza altre parole o formattazioni Markdown):
+    ALTRIMENTI, estrai le fasi del progetto e restituisci SOLO ED ESCLUSIVAMENTE un JSON valido:
     {{
         "fasi": [
             {{"Fase": "Descrizione", "Skill": "Tecnologia", "Giorni": 20}}
@@ -296,24 +297,24 @@ def analizza_testo_llm(testo, api_key):
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}
+        # response_format JSON per blindare la risposta e forzare Groq a generare SOLO JSON pulito
+        payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1, "response_format": {"type": "json_object"}}
         response = requests.post(url, headers=headers, json=payload)
         
         if response.status_code != 200:
             return [], [], f"Errore API Groq (Codice {response.status_code}): Controllare validità Chiave API o limiti Rate Limit."
             
         txt = response.json()["choices"][0]["message"]["content"]
-        txt = txt.replace("```json", "").replace("```", "").strip()
-        
         dati = json.loads(txt)
         if "errore" in dati: return [], [], dati["errore"]
         return dati.get("fasi", []), dati.get("competenze", []), None
-    except json.JSONDecodeError:
-        return [], [], "Il modello AI non ha generato un JSON valido. Riprovare."
     except Exception as e:
         return [], [], f"Errore di sistema AI: {str(e)}"
 
 def parse_chatbot_intent_llm(prompt, df, api_key):
+    if not api_key:
+        return None, "🔑 L'Intelligenza Artificiale è disattivata. Configura la GROQ_API_KEY nei Secrets per usare il Chatbot."
+
     lista_nomi = ", ".join(df['Nome'].tolist())
     system_prompt = f"""Sei uno Smart Assistant. Rispondi SOLO in formato JSON, senza alcun testo fuori dal JSON. Database Nomi: {lista_nomi}
     1. ALLOCARE: {{"azione": "alloca", "nome": "Nome Cognome", "percentuale": 50, "cliente": "ID_Commessa", "messaggio_riepilogo": "Allocazione..."}}
@@ -322,21 +323,19 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}], "temperature": 0.1}
+        payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}], "temperature": 0.1, "response_format": {"type": "json_object"}}
         response = requests.post(url, headers=headers, json=payload)
         
         if response.status_code != 200:
             return None, f"Errore API Groq ({response.status_code}). Verifica validità o limiti API Key."
 
         txt = response.json()["choices"][0]["message"]["content"]
-        txt = txt.replace("```json", "").replace("```", "").strip()
-        
         dati = json.loads(txt)
         if dati.get("azione") == "errore": return None, dati.get("messaggio_riepilogo")
         if dati.get("azione") == "alloca": return {"type": "alloca", "nome": dati.get("nome"), "perc": dati.get("percentuale", 100), "cliente": dati.get("cliente", "N/D"), "desc": dati.get("messaggio_riepilogo")}, None
         if dati.get("azione") == "promuovi": return {"type": "promuovi", "nome": dati.get("nome"), "nuova_sen": dati.get("nuova_seniority"), "desc": dati.get("messaggio_riepilogo")}, None
         return None, "Errore Parser LLM."
-    except Exception as e: return None, f"Errore AI: Inserire chiave API valida o controllare connessione."
+    except Exception as e: return None, f"Errore AI interno. Riprova."
 
 def esegui_azione_chatbot(dati_finali):
     df_ris = st.session_state.df_risorse
@@ -370,11 +369,6 @@ if ruolo_utente != "Resource Allocation Engine": st.session_state.pm_logged_in =
 if ruolo_utente != "Talent Workspace": st.session_state.it_logged_in, st.session_state.current_it_user = False, None
 if ruolo_utente != "Talent Management": st.session_state.hr_logged_in = False
 
-df_risorse = st.session_state.df_risorse
-df_commesse = st.session_state.df_commesse
-df_allocazioni = st.session_state.df_allocazioni
-df_timesheet = st.session_state.df_timesheet
-
 # ==========================================
 # VISTA 1: RESOURCE ALLOCATION ENGINE
 # ==========================================
@@ -404,7 +398,7 @@ if ruolo_utente == "Resource Allocation Engine":
 
         num_alert = len(overbooked) + len(commesse_loss) + len(st.session_state.pending_allocations)
         
-        # Struttura Gerarchica Sidebar (Menu Scalare Neon Ripristinato)
+        # Struttura Gerarchica Sidebar (Menu Scalare Neon)
         nav_tree = {
             "Homepage": [],
             "Project and Resources Management": ["Notification and Alert", "Project Hub", "Resource Allocation"],
@@ -636,8 +630,6 @@ if ruolo_utente == "Resource Allocation Engine":
             t_sel = c_f2.multiselect("Analizza i seguenti profili:", df_f['Nome'].tolist(), default=v_t)
             st.session_state.s_t_sel = t_sel
             
-            vista_tipo = st.radio("Selettore Interfaccia Visiva:", ["Vista Mensile (Calendario a blocchi)", "Vista Giornaliera (Scheduling Assistant)"], horizontal=True)
-            
             if t_sel:
                 oggi = datetime.today()
                 mese_offset = st.session_state.get('team_cal_idx', 0)
@@ -660,31 +652,9 @@ if ruolo_utente == "Resource Allocation Engine":
                 cal = calendar.Calendar(firstweekday=0)
                 giorni_del_mese = [d for d in cal.itermonthdates(anno_c, mese_c) if d.month == mese_c]
 
-                if vista_tipo == "Vista Giornaliera (Scheduling Assistant)":
-                    html_grid = "<div class='scheduling-container'><div>"
-                    html_grid += "<div class='scheduling-row'><div class='scheduling-name'>Profili Analizzati</div>"
-                    for d in giorni_del_mese:
-                        giorno_let = ["L", "M", "M", "G", "V", "S", "D"][d.weekday()]
-                        html_grid += f"<div class='scheduling-header'>{giorno_let}<br>{d.day}</div>"
-                    html_grid += "</div>"
-                    
-                    for nome in t_sel:
-                        r_id = df_risorse[df_risorse['Nome'] == nome]['ID'].values[0]
-                        sat = get_saturazione(r_id, df_allocazioni)
-                        prog_att = get_progetti_risorsa(r_id, df_allocazioni, df_commesse)
-                        
-                        html_grid += f"<div class='scheduling-row'><div class='scheduling-name'>{nome}<br><span style='font-size:11px; color:var(--kpi-text-sub); font-weight:400;'>{prog_att}</span></div>"
-                        for d in giorni_del_mese:
-                            if d.weekday() >= 5: bg = "#21262D" if st.get_option("theme.base") == "dark" else "#E5E7EB"
-                            elif sat == 0: bg = "#EF4444"
-                            elif sat < 100: bg = "#F59E0B"
-                            else: bg = "#10B981"
-                            html_grid += f"<div class='scheduling-cell' style='background:{bg}; color: transparent;'>.</div>"
-                        html_grid += "</div>"
-                    html_grid += "</div></div>"
-                    st.markdown(html_grid, unsafe_allow_html=True)
-                
-                else:
+                tab_mensile, tab_giornaliera = st.tabs(["Vista Mensile (Calendario a blocchi)", "Vista Giornaliera (Scheduling Assistant)"])
+
+                with tab_mensile:
                     cols_per_row = 3
                     for i in range(0, len(t_sel), cols_per_row):
                         cols = st.columns(cols_per_row)
@@ -710,6 +680,30 @@ if ruolo_utente == "Resource Allocation Engine":
                                             html_cal += f"<div style='background-color:{bg}; height:32px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:12px; color:#FFF;'>{day.day}</div>"
                                 html_cal += "</div>"
                                 st.markdown(html_cal, unsafe_allow_html=True)
+
+                with tab_giornaliera:
+                    html_grid = "<div class='scheduling-container'><div>"
+                    html_grid += "<div class='scheduling-row'><div class='scheduling-name'>Profili Analizzati</div>"
+                    for d in giorni_del_mese:
+                        giorno_let = ["L", "M", "M", "G", "V", "S", "D"][d.weekday()]
+                        html_grid += f"<div class='scheduling-header'>{giorno_let}<br>{d.day}</div>"
+                    html_grid += "</div>"
+                    
+                    for nome in t_sel:
+                        r_id = df_risorse[df_risorse['Nome'] == nome]['ID'].values[0]
+                        sat = get_saturazione(r_id, df_allocazioni)
+                        prog_att = get_progetti_risorsa(r_id, df_allocazioni, df_commesse)
+                        
+                        html_grid += f"<div class='scheduling-row'><div class='scheduling-name'>{nome}<br><span style='font-size:11px; color:var(--kpi-text-sub); font-weight:400;'>{prog_att}</span></div>"
+                        for d in giorni_del_mese:
+                            if d.weekday() >= 5: bg = "#21262D" if st.get_option("theme.base") == "dark" else "#E5E7EB"
+                            elif sat == 0: bg = "#EF4444"
+                            elif sat < 100: bg = "#F59E0B"
+                            else: bg = "#10B981"
+                            html_grid += f"<div class='scheduling-cell' style='background:{bg}; color: transparent;'>.</div>"
+                        html_grid += "</div>"
+                    html_grid += "</div></div>"
+                    st.markdown(html_grid, unsafe_allow_html=True)
 
         elif pagina_pm == "Project Portfolio":
             st.markdown("<h1 class='gradient-title'>Project Portfolio</h1>", unsafe_allow_html=True)
@@ -841,9 +835,14 @@ elif ruolo_utente == "Talent Workspace":
             st.markdown("---")
             st.subheader("Storico Caricamenti Personali")
             mio_ts = df_timesheet[df_timesheet['ID_Risorsa'] == id_c].copy()
+            
             if not mio_ts.empty:
-                mio_ts['Data_Inizio_Progetto'] = mio_ts['Data_Inizio_Progetto'].apply(formatta_data)
-                st.dataframe(mio_ts[['ID_Commessa', 'Data_Inizio_Progetto', 'Giornate_Spese']], use_container_width=True, hide_index=True)
+                if 'Data_Inizio_Progetto' in mio_ts.columns:
+                    mio_ts['Data_Inizio_Progetto'] = mio_ts['Data_Inizio_Progetto'].apply(formatta_data)
+                    st.dataframe(mio_ts[['ID_Commessa', 'Data_Inizio_Progetto', 'Giornate_Spese']], use_container_width=True, hide_index=True)
+                elif 'Data_Inizio' in mio_ts.columns:
+                    mio_ts['Data_Inizio'] = mio_ts['Data_Inizio'].apply(formatta_data)
+                    st.dataframe(mio_ts[['ID_Commessa', 'Data_Inizio', 'Giornate_Spese']], use_container_width=True, hide_index=True)
             else:
                 st.caption("Nessun timesheet loggato in precedenza.")
 
@@ -987,7 +986,7 @@ elif ruolo_utente == "Talent Management":
 if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
     st.sidebar.markdown("<br><hr style='border-color: rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
     with st.sidebar.popover("Smart Assistant", use_container_width=True):
-        st.caption("Motore LLM LLaMA-3 (Attivo)" if st.session_state.groq_api_key else "Motore Regex (Fallback Attivo)")
+        st.caption("Motore LLM LLaMA-3 (Attivo)" if st.session_state.groq_api_key else "Inserisci Chiave API per abilitare AI")
         for m in st.session_state.chat_msgs: 
             st.chat_message(m["role"]).write(m["content"])
         
@@ -1006,7 +1005,3 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
             else: 
                 st.session_state.bot_action = action
             st.rerun()
-            
-    with st.sidebar.expander("Configurazione Root Backend AI"):
-        st.write("*Note: Interfaccia lasciata in evidenza unicamente per agevolare le simulazioni di override del motore LLM (dimostrazione del fallback deterministico).*")
-        st.session_state.groq_api_key = st.text_input("Groq API Key (Bearer):", value=st.session_state.groq_api_key, type="password")
