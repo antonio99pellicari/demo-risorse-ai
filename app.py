@@ -90,10 +90,12 @@ st.markdown("""
     
     .stTabs [data-baseweb="tab"] { font-size: 1rem; font-weight: 600; padding: 10px 20px; }
 
-    /* --- MENU SCALARE NEON (Nascondiamo il pallino del radio e illuminiamo il testo) --- */
+    /* --- MENU SCALARE NEON --- */
+    /* Nasconde il cerchiolino del radio button nativo di Streamlit */
     [data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {
         display: none !important;
     }
+    /* Stile della voce di menu base */
     [data-testid="stSidebar"] div[role="radiogroup"] label {
         padding: 10px 14px;
         margin-bottom: 2px;
@@ -141,9 +143,10 @@ def formatta_data(data_str):
     except: return data_str
 
 def get_badge(n):
+    """ Restituisce un carattere Unicode nativo compatibile con i menu Streamlit senza usare HTML """
     if n <= 0: return ""
     badges = ["❶","❷","❸","❹","❺","❻","❼","❽","❾","❿"]
-    return f" <span style='color:#EF4444;'>{badges[n-1]}</span>" if n <= 10 else f" <span style='color:#EF4444;'>🔴</span>"
+    return f" {badges[n-1]}" if n <= 10 else f" ({n})"
 
 def applica_tema_plotly(fig):
     fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font=dict(family="Outfit", color="#8B949E"), margin=dict(l=20, r=20, t=40, b=20))
@@ -363,10 +366,15 @@ if ruolo_utente == "Resource Allocation Engine":
     if not st.session_state.pm_logged_in:
         st.markdown("<h1 class='gradient-title'>Gateway Resource Allocation Engine</h1>", unsafe_allow_html=True)
         with st.form("login_pm_form"):
-            if st.form_submit_button("Esegui Login") and st.text_input("ID Utente")=="admin" and st.text_input("Credenziale", type="password")=="admin123":
-                st.session_state.pm_logged_in = True; st.rerun()
+            username = st.text_input("ID Utente")
+            password = st.text_input("Credenziale di Rete", type="password")
+            if st.form_submit_button("Esegui Login"):
+                if username == "admin" and password == "admin123":
+                    st.session_state.pm_logged_in = True; st.rerun()
+                else: 
+                    st.error("Credenziali non conformi.")
     else:
-        # Pre-calcolo Allarmi per Notifiche (Pallini)
+        # Pre-calcolo Allarmi per Notifiche
         sat_df = df_allocazioni.groupby('ID_Risorsa')['Impegno_%'].sum().reset_index() if not df_allocazioni.empty else pd.DataFrame()
         overbooked = sat_df[sat_df['Impegno_%'] > 100] if not sat_df.empty else pd.DataFrame()
         
@@ -380,7 +388,7 @@ if ruolo_utente == "Resource Allocation Engine":
 
         num_alert = len(overbooked) + len(commesse_loss) + len(st.session_state.pending_allocations)
         
-        # Struttura Gerarchica Sidebar (Menu Scalare)
+        # Struttura Gerarchica Sidebar
         nav_tree = {
             "Homepage": [],
             "Project and Resources Management": ["Notification and Alert", "Project Hub", "Resource Allocation"],
@@ -395,13 +403,22 @@ if ruolo_utente == "Resource Allocation Engine":
         for macro, subs in nav_tree.items():
             d_macro = macro + (get_badge(num_alert) if macro=="Project and Resources Management" else "")
             mapping[d_macro] = (macro, None)
-            
             if st.session_state.active_macro == macro:
                 for sub in subs:
-                    d_sub = f" {sub}" + (get_badge(num_alert) if sub=="Notification and Alert" else "")
+                    # Uso spazi unificatori Unicode per indentazione visiva pulita
+                    d_sub = f"  {sub}" + (get_badge(num_alert) if sub=="Notification and Alert" else "")
                     mapping[d_sub] = (macro, sub)
 
-        selected_display = st.sidebar.radio("Struttura Navigazione", list(mapping.keys()), label_visibility="collapsed")
+        # Calcolo dell'indice corrente per evitare che il radio button perda il puntatore
+        def_key = st.session_state.active_macro + (get_badge(num_alert) if st.session_state.active_macro=="Project and Resources Management" else "")
+        if st.session_state.active_sub:
+            for k, (mac, sub) in mapping.items():
+                if sub == st.session_state.active_sub: def_key = k
+
+        try: default_idx = list(mapping.keys()).index(def_key)
+        except ValueError: default_idx = 0
+
+        selected_display = st.sidebar.radio("Struttura Navigazione", list(mapping.keys()), index=default_idx, label_visibility="collapsed")
         selected_macro, selected_sub = mapping[selected_display]
 
         if selected_macro != st.session_state.active_macro:
@@ -842,9 +859,17 @@ elif ruolo_utente == "Talent Management":
             hr_mapping[macro] = (macro, None)
             if st.session_state.hr_active_macro == macro:
                 for sub in subs:
-                    hr_mapping[f" {sub}"] = (macro, sub)
+                    hr_mapping[f"  {sub}"] = (macro, sub)
 
-        selected_display = st.sidebar.radio("Struttura Navigazione", list(hr_mapping.keys()), label_visibility="collapsed")
+        def_key_hr = st.session_state.hr_active_macro
+        if st.session_state.hr_active_sub:
+            for k, (mac, sub) in hr_mapping.items():
+                if sub == st.session_state.hr_active_sub: def_key_hr = k
+
+        try: default_idx_hr = list(hr_mapping.keys()).index(def_key_hr)
+        except ValueError: default_idx_hr = 0
+
+        selected_display = st.sidebar.radio("Struttura Navigazione", list(hr_mapping.keys()), index=default_idx_hr, label_visibility="collapsed")
         selected_macro, selected_sub = hr_mapping[selected_display]
 
         if selected_macro != st.session_state.hr_active_macro:
