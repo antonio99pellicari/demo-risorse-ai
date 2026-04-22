@@ -125,18 +125,18 @@ st.markdown("""
         text-shadow: 0 0 10px rgba(59,130,246,0.6), 0 0 20px rgba(59,130,246,0.3) !important;
     }
 
-    /* --- BADGE NOTIFICHE NEON IN PENOMBRA --- */
+    /* --- BADGE NOTIFICHE NEON ARANCIONE ACCESO --- */
     [data-testid="stSidebar"] div[role="radiogroup"] label em {
         font-style: normal;
-        background: rgba(239, 68, 68, 0.12);
-        color: #EF4444;
+        background: rgba(255, 115, 0, 0.15);
+        color: #FF7300;
         border-radius: 8px;
         padding: 2px 8px;
         font-size: 0.75rem;
         font-weight: 800;
         margin-left: 8px;
-        box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
-        border: 1px solid rgba(239, 68, 68, 0.3);
+        box-shadow: 0 0 14px rgba(255, 115, 0, 0.6);
+        border: 1px solid rgba(255, 115, 0, 0.5);
         display: inline-block;
         transform: translateY(-1px);
         letter-spacing: 0.5px;
@@ -631,7 +631,6 @@ if ruolo_utente == "Resource Allocation Engine":
                     for skill in skill_richieste:
                         risorsa_trovata = False
                         
-                        # RICERCA ELASTICA (Fuzzy Match di backup)
                         clean_skill_req = skill.lower().replace("(", "").replace(")", "")
                         
                         for _, r in df_risorse.iterrows():
@@ -639,7 +638,6 @@ if ruolo_utente == "Resource Allocation Engine":
                                 db_skills = r['Skill'].lower()
                                 is_match = clean_skill_req in db_skills
                                 
-                                # Se non c'è match diretto, cerca per parola singola rilevante (es. java in java spring boot)
                                 if not is_match:
                                     for word in clean_skill_req.split():
                                         if len(word) > 2 and word in db_skills:
