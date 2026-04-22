@@ -96,6 +96,17 @@ st.markdown("""
     .scheduling-header { font-weight: 700; font-size: 11px; color: var(--kpi-text-sub); text-align: center; min-width: 35px; }
     .scheduling-name { min-width: 180px; max-width: 180px; font-weight: 600; font-size: 14px; position: sticky; left: 0; background-color: var(--background-color); z-index: 2; padding-right: 15px; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
     .scheduling-cell { min-width: 35px; height: 35px; margin-right: 2px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 600; }
+
+    /* Stile Neon opzionale per il menu standard */
+    [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
+        background: rgba(59, 130, 246, 0.12) !important;
+        box-shadow: inset 4px 0 0 #3B82F6 !important;
+        border-radius: 4px;
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) p {
+        font-weight: 800 !important;
+        color: #3B82F6 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -271,7 +282,6 @@ def analizza_testo_llm(testo, api_key):
             return [], [], f"Errore API Groq (Codice {response.status_code}): Controllare validità Chiave API o limiti Rate Limit."
             
         txt = response.json()["choices"][0]["message"]["content"]
-        # Pulisce eventuali markdown sfuggiti
         txt = txt.replace("```json", "").replace("```", "").strip()
         
         dati = json.loads(txt)
@@ -373,28 +383,33 @@ if ruolo_utente == "Resource Allocation Engine":
 
         num_alert = len(overbooked) + len(commesse_loss) + len(st.session_state.pending_allocations)
         
-        # --- MENU NATIVO (NO DELAY) ---
+        # --- MENU NATIVO STREAMLIT (STABILE E SENZA DELAY) ---
+        st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Sezione Principale</p>", unsafe_allow_html=True)
         main_tab = st.sidebar.radio(
-            "Struttura Navigazione", 
-            [f"Homepage", f"Project and Resources Management{get_badge(num_alert)}", "Staffing Intelligence", "Data Hub"],
+            "Sezione Principale", 
+            ["Homepage", f"Project and Resources Management{get_badge(num_alert)}", "Staffing Intelligence", "Data Hub"],
             label_visibility="collapsed"
         )
         
         pagina_pm = "Homepage"
+        
+        # Gestione Sottomenu Condizionali Robusta
         if "Project and Resources" in main_tab:
-            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Moduli Gestionali</p>", unsafe_allow_html=True)
             sub_tab = st.sidebar.radio("Sottomenu", [f"Notification and Alert{get_badge(num_alert)}", "Project Hub", "Resource Allocation"], label_visibility="collapsed")
             pagina_pm = "Notification and Alert" if "Notification" in sub_tab else ("Project Hub" if "Project" in sub_tab else "Resource Allocation")
-        elif "Staffing Intelligence" in main_tab:
-            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+            
+        elif main_tab == "Staffing Intelligence":
+            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Moduli Intelligenza</p>", unsafe_allow_html=True)
             sub_tab = st.sidebar.radio("Sottomenu", ["Allocation Advisor", "Build your Team", "Profile Explorer"], label_visibility="collapsed")
             pagina_pm = sub_tab
-        elif "Data Hub" in main_tab:
-            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+            
+        elif main_tab == "Data Hub":
+            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Repository Dati</p>", unsafe_allow_html=True)
             sub_tab = st.sidebar.radio("Sottomenu", ["Project Portfolio", "Resource Master Data"], label_visibility="collapsed")
             pagina_pm = sub_tab
 
-        st.sidebar.markdown("<br>", unsafe_allow_html=True)
+        st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
         if st.sidebar.button("Termina Sessione Corrente"): st.session_state.pm_logged_in = False; st.rerun()
 
         # --- CONTENUTI PAGINE ---
@@ -813,24 +828,25 @@ elif ruolo_utente == "Talent Management":
                 else: 
                     st.error("Credenziali Errate. Usare hr / hr123")
     else:
-        # --- MENU NATIVO HR (NO DELAY) ---
-        hr_main = st.sidebar.radio("Struttura Navigazione", ["Homepage", "Talent Lifecycle", "HR Operations", "Data Hub"], label_visibility="collapsed")
+        # --- MENU NATIVO STREAMLIT HR ---
+        st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Sezione Principale</p>", unsafe_allow_html=True)
+        hr_main = st.sidebar.radio("Sezione Principale", ["Homepage", "Talent Lifecycle", "HR Operations", "Data Hub"], label_visibility="collapsed")
         
         pagina_hr = "Homepage"
-        if "Talent Lifecycle" in hr_main:
-            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+        if hr_main == "Talent Lifecycle":
+            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Ciclo di Vita</p>", unsafe_allow_html=True)
             s_tab = st.sidebar.radio("Sottomenu", ["Talent Onboarding", "Career Development"], label_visibility="collapsed")
             pagina_hr = s_tab
-        elif "HR Operations" in hr_main:
-            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+        elif hr_main == "HR Operations":
+            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Operatività</p>", unsafe_allow_html=True)
             s_tab = st.sidebar.radio("Sottomenu", ["ERP Integration"], label_visibility="collapsed")
             pagina_hr = s_tab
-        elif "Data Hub" in hr_main:
-            st.sidebar.markdown("<hr style='margin:0px; padding:0px; border:0; border-top: 1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+        elif hr_main == "Data Hub":
+            st.sidebar.markdown("<p style='font-size:12px; color:var(--kpi-text-sub); margin-top:15px; margin-bottom:0px; font-weight:600; text-transform:uppercase;'>Repository Dati</p>", unsafe_allow_html=True)
             s_tab = st.sidebar.radio("Sottomenu", ["Data Repository"], label_visibility="collapsed")
             pagina_hr = s_tab
         
-        st.sidebar.markdown("<br>", unsafe_allow_html=True)
+        st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
         if st.sidebar.button("Termina Sessione"): st.session_state.hr_logged_in = False; st.rerun()
 
         if pagina_hr == "Homepage":
