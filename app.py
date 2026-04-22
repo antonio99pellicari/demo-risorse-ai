@@ -98,11 +98,9 @@ st.markdown("""
     .scheduling-cell { min-width: 35px; height: 35px; margin-right: 2px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 600; }
 
     /* --- MENU SCALARE NEON --- */
-    /* Nasconde il cerchiolino del radio button nativo di Streamlit */
     [data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {
         display: none !important;
     }
-    /* Stile della voce di menu base */
     [data-testid="stSidebar"] div[role="radiogroup"] label {
         padding: 10px 14px;
         margin-bottom: 2px;
@@ -117,7 +115,6 @@ st.markdown("""
         font-size: 1.05rem;
         transition: all 0.3s ease;
     }
-    /* Selezionato NEON */
     [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
         background: rgba(59, 130, 246, 0.12) !important;
         box-shadow: inset 4px 0 0 #3B82F6, 0 0 15px rgba(59,130,246,0.2) !important;
@@ -126,6 +123,23 @@ st.markdown("""
         font-weight: 800 !important;
         color: #3B82F6 !important;
         text-shadow: 0 0 10px rgba(59,130,246,0.6), 0 0 20px rgba(59,130,246,0.3) !important;
+    }
+
+    /* --- BADGE NOTIFICHE NEON IN PENOMBRA --- */
+    [data-testid="stSidebar"] div[role="radiogroup"] label em {
+        font-style: normal;
+        background: rgba(239, 68, 68, 0.12);
+        color: #EF4444;
+        border-radius: 8px;
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        margin-left: 8px;
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        display: inline-block;
+        transform: translateY(-1px);
+        letter-spacing: 0.5px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -144,8 +158,7 @@ def formatta_data(data_str):
 
 def get_badge(n):
     if n <= 0: return ""
-    badges = ["❶","❷","❸","❹","❺","❻","❼","❽","❾","❿"]
-    return f" {badges[n-1]}" if n <= 10 else f" ({n})"
+    return f" *{n}*"
 
 def applica_tema_plotly(fig):
     fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font=dict(family="Outfit", color="#8B949E"), margin=dict(l=20, r=20, t=40, b=20))
@@ -154,6 +167,7 @@ def applica_tema_plotly(fig):
 # --- STRUTTURA DATI RELAZIONALE ---
 @st.cache_data
 def genera_dati_strutturali():
+    # AGGIUNTE 20 NUOVE RISORSE (Totale 60)
     nomi_completi = [
         "Marco Rossi", "Giulia Bianchi", "Luca Neri", "Anna Verdi", "Matteo Colombo", "Sofia Ferrari",
         "Andrea Romano", "Martina Bruno", "Alessandro Gallo", "Chiara Conti", "Davide Costa", "Sara Giordano",
@@ -162,15 +176,19 @@ def genera_dati_strutturali():
         "Federico Martini", "Alessia Leone", "Stefano Longo", "Giorgia Gentile", "Daniele Martinelli",
         "Roberta Vitale", "Michele Lombardo", "Ilaria Coppola", "Tommaso De Luca", "Elisa Mancini",
         "Antonio Costa", "Paola Fiore", "Giovanni Marchetti", "Serena Parisi", "Roberto Villa",
-        "Caterina Conte", "Francesco Ferri", "Marta Bianco"
+        "Caterina Conte", "Francesco Ferri", "Marta Bianco",
+        "Claudio Ferri", "Simona Riva", "Fabio Conte", "Chiara Rossi", "Massimo Neri", "Federica Galli",
+        "Roberto Bruno", "Paolo Marini", "Giada Coppola", "Stefania De Rosa", "Alessio Greco", "Vittoria Giuliani",
+        "Edoardo Lombardi", "Valeria Morelli", "Gianluca Ruggiero", "Erica Santoro", "Luigi Palumbo", 
+        "Tiziana D'Amico", "Carmine Silvestri", "Ginevra Carbone"
     ]
     
     ruoli_skills = [
-        ("Frontend Developer", ["React", "Vue", "TypeScript", "HTML/CSS"], "IT"),
-        ("Backend Developer", ["Node.js", "Python", "Java", "Go", "C#"], "IT"),
-        ("Fullstack Developer", ["React", "Node.js", "Python", "TypeScript", "SQL"], "IT"),
+        ("Frontend Developer", ["React", "Vue", "TypeScript", "HTML/CSS", "Angular"], "IT"),
+        ("Backend Developer", ["Node.js", "Python", "Java", "Go", "C#", "Spring Boot"], "IT"),
+        ("Fullstack Developer", ["React", "Node.js", "Python", "TypeScript", "SQL", "Angular"], "IT"),
         ("DevOps Engineer", ["AWS", "Docker", "Kubernetes", "CI/CD", "Terraform"], "IT"),
-        ("Data Scientist", ["Python", "Machine Learning", "SQL", "Pandas"], "Data Science"),
+        ("Data Scientist", ["Python", "Machine Learning", "SQL", "Pandas", "LangChain", "Pinecone"], "Data Science"),
         ("Data Analyst", ["Excel", "Python", "SQL", "PowerBI"], "Data Science"),
         ("Business Analyst", ["Excel", "SQL", "BPMN"], "Risk/Management"),
         ("Project Manager", ["Agile", "Scrum", "Jira"], "Risk/Management")
@@ -279,15 +297,22 @@ def analizza_testo_llm(testo, api_key):
     if not api_key:
         return [], [], "🔑 Nessuna API Key trovata nei Secrets."
     
+    # INTEGRAZIONE CATALOGO SKILL PER MAPPING SEMANTICO AI
+    catalogo_skill = "React, Vue, TypeScript, HTML/CSS, Angular, Node.js, Python, Java, Go, C#, Spring Boot, SQL, AWS, Docker, Kubernetes, CI/CD, Terraform, Machine Learning, Pandas, LangChain, Pinecone, Excel, PowerBI, BPMN, Agile, Scrum, Jira"
+    
     prompt = f"""
     Sei un'AI specializzata in IT Project Management.
-    ANALIZZA il seguente testo. SE la richiesta NON riguarda lo sviluppo software o l'IT (es. saluti, ricette, dighe, discorsi futili), restituisci QUESTO ESATTO JSON DI ERRORE:
+    ANALIZZA il seguente testo. SE la richiesta NON riguarda lo sviluppo software o l'IT, restituisci:
     {{"errore": "Input non pertinente. Inserire un brief di progetto software valido."}}
     
-    ALTRIMENTI, estrai le fasi del progetto e restituisci SOLO ED ESCLUSIVAMENTE un JSON valido:
+    ALTRIMENTI, estrai le fasi del progetto e le competenze necessarie.
+    REGOLA FONDAMENTALE: Per il campo "Skill", DEVI scegliere ESCLUSIVAMENTE uno dei valori esatti da questo catalogo:
+    [{catalogo_skill}]. Non inventare nomi. Se trovi "Java (Spring Boot)", usa "Java" o "Spring Boot".
+    
+    Restituisci SOLO ED ESCLUSIVAMENTE un JSON valido:
     {{
         "fasi": [
-            {{"Fase": "Descrizione", "Skill": "Tecnologia", "Giorni": 20}}
+            {{"Fase": "Descrizione", "Skill": "TecnologiaEsattaDalCatalogo", "Giorni": 20}}
         ],
         "competenze": ["Tecnologia1", "Tecnologia2"]
     }}
@@ -297,7 +322,6 @@ def analizza_testo_llm(testo, api_key):
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        # FIX: rimosso response_format che causava errore 400
         payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}
         response = requests.post(url, headers=headers, json=payload)
         
@@ -305,7 +329,6 @@ def analizza_testo_llm(testo, api_key):
             return [], [], f"Errore API Groq ({response.status_code})."
             
         txt = response.json()["choices"][0]["message"]["content"]
-        # REGEX SOLIDA per estrarre JSON
         match = re.search(r'\{.*\}', txt, re.DOTALL)
         if match: txt = match.group(0)
             
@@ -323,11 +346,10 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     system_prompt = f"""Sei uno Smart Assistant. Rispondi SOLO in formato JSON, senza alcun testo fuori dal JSON. Database Nomi: {lista_nomi}
     1. ALLOCARE: {{"azione": "alloca", "nome": "Nome Cognome", "percentuale": 50, "cliente": "ID_Commessa", "messaggio_riepilogo": "Allocazione..."}}
     2. PROMUOVERE: {{"azione": "promuovi", "nome": "Nome Cognome", "nuova_seniority": "Senior", "messaggio_riepilogo": "Upgrade..."}}
-    3. ALTRO (Testo non valido/Saluti): {{"azione": "errore", "messaggio_riepilogo": "Comando non riconosciuto. Specificare se allocare o promuovere una risorsa in anagrafica."}}"""
+    3. ALTRO (Testo non valido/Saluti): {{"azione": "errore", "messaggio_riepilogo": "Comando non riconosciuto."}}"""
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        # FIX: rimosso response_format che causava errore 400
         payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}], "temperature": 0.1}
         response = requests.post(url, headers=headers, json=payload)
         
@@ -335,14 +357,12 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
             return None, f"Errore API Groq ({response.status_code}). Verifica validità o limiti API Key."
 
         txt = response.json()["choices"][0]["message"]["content"]
-        # REGEX SOLIDA per estrarre JSON
         match = re.search(r'\{.*\}', txt, re.DOTALL)
         if match: txt = match.group(0)
             
         dati = json.loads(txt)
         if dati.get("azione") == "errore": return None, dati.get("messaggio_riepilogo")
         
-        # Conversione sicura della percentuale in intero
         perc_val = 100
         try: perc_val = int(dati.get("percentuale", 100))
         except: pass
@@ -413,7 +433,7 @@ if ruolo_utente == "Resource Allocation Engine":
 
         num_alert = len(overbooked) + len(commesse_loss) + len(st.session_state.pending_allocations)
         
-        # Struttura Gerarchica Sidebar (Menu Scalare Neon)
+        # Struttura Gerarchica Sidebar
         nav_tree = {
             "Homepage": [],
             "Project and Resources Management": ["Notification and Alert", "Project Hub", "Resource Allocation"],
@@ -426,14 +446,17 @@ if ruolo_utente == "Resource Allocation Engine":
 
         mapping = {}
         for macro, subs in nav_tree.items():
-            d_macro = macro + (get_badge(num_alert) if macro=="Project and Resources Management" else "")
+            mostra_badge_macro = (macro == "Project and Resources Management" and st.session_state.active_macro != "Project and Resources Management")
+            
+            d_macro = macro + (get_badge(num_alert) if mostra_badge_macro else "")
             mapping[d_macro] = (macro, None)
+            
             if st.session_state.active_macro == macro:
                 for sub in subs:
                     d_sub = f"  {sub}" + (get_badge(num_alert) if sub=="Notification and Alert" else "")
                     mapping[d_sub] = (macro, sub)
 
-        def_key = st.session_state.active_macro + (get_badge(num_alert) if st.session_state.active_macro=="Project and Resources Management" else "")
+        def_key = st.session_state.active_macro + (get_badge(num_alert) if st.session_state.active_macro != "Project and Resources Management" and st.session_state.active_macro == "Project and Resources Management" else "")
         if st.session_state.active_sub:
             for k, (mac, sub) in mapping.items():
                 if sub == st.session_state.active_sub: def_key = k
@@ -601,29 +624,59 @@ if ruolo_utente == "Resource Allocation Engine":
                 if err_msg:
                     st.error(err_msg)
                 elif not fasi: 
-                    st.warning("Non è stato possibile mappare i requisiti. Inserire tecnologie riconoscibili (es. React, Node, Python, AWS).")
+                    st.warning("Non è stato possibile mappare i requisiti. Riprova con descrizioni più chiare.")
                 else:
                     st.session_state.wbs_data = pd.DataFrame(fasi)
                     team = []
                     for skill in skill_richieste:
+                        risorsa_trovata = False
+                        
+                        # RICERCA ELASTICA (Fuzzy Match di backup)
+                        clean_skill_req = skill.lower().replace("(", "").replace(")", "")
+                        
                         for _, r in df_risorse.iterrows():
-                            if get_saturazione(r['ID'], df_allocazioni) < 100 and skill.lower() in r['Skill'].lower():
-                                team.append({"Skill": skill, "Nome": r['Nome'], "Costo (€)": r['Costo_Giorno'], "Margine (%)": 30})
-                                break
-                        else: team.append({"Skill": skill, "Nome": "ASSUNZIONE NECESSARIA", "Costo (€)": 300, "Margine (%)": 30})
+                            if get_saturazione(r['ID'], df_allocazioni) < 100:
+                                db_skills = r['Skill'].lower()
+                                is_match = clean_skill_req in db_skills
+                                
+                                # Se non c'è match diretto, cerca per parola singola rilevante (es. java in java spring boot)
+                                if not is_match:
+                                    for word in clean_skill_req.split():
+                                        if len(word) > 2 and word in db_skills:
+                                            is_match = True
+                                            break
+                                            
+                                if is_match:
+                                    team.append({"Skill": skill, "Nome": r['Nome'], "Costo (€)": r['Costo_Giorno'], "Margine (%)": 30})
+                                    risorsa_trovata = True
+                                    break
+                                    
+                        if not risorsa_trovata:
+                            team.append({"Skill": skill, "Nome": "ASSUNZIONE NECESSARIA", "Costo (€)": 300, "Margine (%)": 30})
                     st.session_state.team_data = pd.DataFrame(team)
 
             if "wbs_data" in st.session_state and not st.session_state.wbs_data.empty:
                 tab_wbs, tab_team = st.tabs(["Work Breakdown Structure (WBS)", "Assessment Economico Team"])
+                
                 with tab_wbs: 
-                    st.session_state.wbs_data = st.data_editor(st.session_state.wbs_data, num_rows="dynamic", use_container_width=True)
+                    st.session_state.wbs_data = st.data_editor(
+                        st.session_state.wbs_data, 
+                        num_rows="dynamic", 
+                        use_container_width=True,
+                        column_config={
+                            "Giorni": st.column_config.NumberColumn("Giorni", min_value=1, step=1)
+                        }
+                    )
                 with tab_team:
                     st.session_state.team_data = st.data_editor(
-                        st.session_state.team_data, use_container_width=True,
-                        column_config={"Costo (€)": st.column_config.NumberColumn(step=50), "Margine (%)": st.column_config.NumberColumn(step=5)}
+                        st.session_state.team_data, 
+                        use_container_width=True,
+                        column_config={
+                            "Costo (€)": st.column_config.NumberColumn("Costo (€)", min_value=0, step=10),
+                            "Margine (%)": st.column_config.NumberColumn("Margine (%)", min_value=0, max_value=100, step=1)
+                        }
                     )
                     
-                    # FIX CALCOLO 0 EURO: Assicuriamo il parsing corretto dei numeri e il matching case-insensitive
                     costo_tot = 0.0
                     prop_comm = 0.0
                     
@@ -632,7 +685,6 @@ if ruolo_utente == "Resource Allocation Engine":
                             giorni = float(row.get('Giorni', 0))
                             w_skill = str(row.get('Skill', '')).strip().lower()
                             
-                            # Matching esatto e case-insensitive tra la WBS LLM e il Team generato
                             mask = st.session_state.team_data['Skill'].astype(str).str.strip().str.lower() == w_skill
                             m = st.session_state.team_data[mask]
                             
@@ -666,7 +718,6 @@ if ruolo_utente == "Resource Allocation Engine":
                 oggi = datetime.today()
                 mese_offset = st.session_state.get('team_cal_idx', 0)
                 
-                # Calcolo mese ciclico
                 anno_c = oggi.year
                 mese_c = oggi.month + mese_offset
                 while mese_c > 12:
@@ -893,7 +944,6 @@ elif ruolo_utente == "Talent Management":
                 else: 
                     st.error("Credenziali Errate. Usare hr / hr123")
     else:
-        # Struttura Gerarchica Sidebar HR (Menu Scalare Ripristinato)
         hr_nav_tree = {
             "Homepage": [],
             "Talent Lifecycle": ["Talent Onboarding", "Career Development"],
@@ -1023,7 +1073,6 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
         for m in st.session_state.chat_msgs: 
             st.chat_message(m["role"]).write(m["content"])
         
-        # FIX POPUP: Ripristinato il form interattivo di validazione
         if st.session_state.bot_action:
             act = st.session_state.bot_action
             st.markdown("### Conferma Dettagli")
@@ -1039,7 +1088,7 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
                     nuova_sen = st.selectbox("Nuovo Livello Inquadramento:", livelli, index=livelli.index(curr) if curr in livelli else 2)
                 
                 c1, c2 = st.columns(2)
-                if c1.form_submit_button("✅ Conferma Transazione", use_container_width=True):
+                if c1.form_submit_button("✅ Conferma", use_container_width=True):
                     if act['type'] == 'alloca':
                         act['nome'] = nuovo_nome
                         act['cliente'] = nuovo_cliente
@@ -1050,7 +1099,7 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
                     esegui_azione_chatbot(act)
                     st.rerun()
                     
-                if c2.form_submit_button("❌ Sospendi e Annulla", use_container_width=True):
+                if c2.form_submit_button("❌ Annulla", use_container_width=True):
                     st.session_state.bot_action = None
                     st.rerun()
         else:
