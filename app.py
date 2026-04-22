@@ -244,7 +244,7 @@ if "df_risorse" not in st.session_state or "df_allocazioni" not in st.session_st
     st.session_state.df_allocazioni = alloc
     st.session_state.df_timesheet = ts
 
-# MIGRATORE DATI IN CACHE (Risolve il KeyError Data_Inizio_Progetto)
+# MIGRATORE DATI IN CACHE
 if 'Data_Inizio' in st.session_state.df_timesheet.columns:
     st.session_state.df_timesheet.rename(columns={'Data_Inizio': 'Data_Inizio_Progetto'}, inplace=True)
 
@@ -254,7 +254,7 @@ if "team_cal_idx" not in st.session_state: st.session_state.team_cal_idx = 0
 if "chat_msgs" not in st.session_state: st.session_state.chat_msgs = [{"role": "assistant", "content": "Smart Assistant inizializzato. Pronto a processare richieste (Es: 'Alloca Marco Rossi su PRJ-001 al 50%')"}]
 if "bot_action" not in st.session_state: st.session_state.bot_action = None
 
-# GESTIONE SICURA DELLA API KEY (ESCLUSIVAMENTE TRAMITE ST.SECRETS)
+# GESTIONE SICURA DELLA API KEY (ST.SECRETS)
 if "groq_api_key" not in st.session_state:
     try:
         st.session_state.groq_api_key = st.secrets["GROQ_API_KEY"]
@@ -266,7 +266,7 @@ if "it_logged_in" not in st.session_state: st.session_state.it_logged_in = False
 if "hr_logged_in" not in st.session_state: st.session_state.hr_logged_in = False
 if "current_it_user" not in st.session_state: st.session_state.current_it_user = None
 
-# SPOSTATO QUI: Assegno le variabili locali SOLO DOPO che il migratore ha fatto il suo lavoro
+# ASSEGNAZIONI
 df_risorse = st.session_state.df_risorse
 df_commesse = st.session_state.df_commesse
 df_allocazioni = st.session_state.df_allocazioni
@@ -277,7 +277,7 @@ df_timesheet = st.session_state.df_timesheet
 # ==========================================
 def analizza_testo_llm(testo, api_key):
     if not api_key:
-        return [], [], "🔑 Nessuna API Key trovata. Inserisci la tua GROQ_API_KEY nei Secrets di Streamlit Cloud per attivare l'Intelligenza Artificiale."
+        return [], [], "🔑 Nessuna API Key trovata nei Secrets."
     
     prompt = f"""
     Sei un'AI specializzata in IT Project Management.
@@ -297,23 +297,27 @@ def analizza_testo_llm(testo, api_key):
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        # response_format JSON per blindare la risposta e forzare Groq a generare SOLO JSON pulito
-        payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1, "response_format": {"type": "json_object"}}
+        # FIX: rimosso response_format che causava errore 400
+        payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}
         response = requests.post(url, headers=headers, json=payload)
         
         if response.status_code != 200:
-            return [], [], f"Errore API Groq (Codice {response.status_code}): Controllare validità Chiave API o limiti Rate Limit."
+            return [], [], f"Errore API Groq ({response.status_code})."
             
         txt = response.json()["choices"][0]["message"]["content"]
+        # REGEX SOLIDA per estrarre JSON
+        match = re.search(r'\{.*\}', txt, re.DOTALL)
+        if match: txt = match.group(0)
+            
         dati = json.loads(txt)
         if "errore" in dati: return [], [], dati["errore"]
         return dati.get("fasi", []), dati.get("competenze", []), None
     except Exception as e:
-        return [], [], f"Errore di sistema AI: {str(e)}"
+        return [], [], f"Errore di parsing AI: Riprova."
 
 def parse_chatbot_intent_llm(prompt, df, api_key):
     if not api_key:
-        return None, "🔑 L'Intelligenza Artificiale è disattivata. Configura la GROQ_API_KEY nei Secrets per usare il Chatbot."
+        return None, "🔑 L'Intelligenza Artificiale è disattivata."
 
     lista_nomi = ", ".join(df['Nome'].tolist())
     system_prompt = f"""Sei uno Smart Assistant. Rispondi SOLO in formato JSON, senza alcun testo fuori dal JSON. Database Nomi: {lista_nomi}
@@ -323,16 +327,27 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}], "temperature": 0.1, "response_format": {"type": "json_object"}}
+        # FIX: rimosso response_format che causava errore 400
+        payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}], "temperature": 0.1}
         response = requests.post(url, headers=headers, json=payload)
         
         if response.status_code != 200:
             return None, f"Errore API Groq ({response.status_code}). Verifica validità o limiti API Key."
 
         txt = response.json()["choices"][0]["message"]["content"]
+        # REGEX SOLIDA per estrarre JSON
+        match = re.search(r'\{.*\}', txt, re.DOTALL)
+        if match: txt = match.group(0)
+            
         dati = json.loads(txt)
         if dati.get("azione") == "errore": return None, dati.get("messaggio_riepilogo")
-        if dati.get("azione") == "alloca": return {"type": "alloca", "nome": dati.get("nome"), "perc": dati.get("percentuale", 100), "cliente": dati.get("cliente", "N/D"), "desc": dati.get("messaggio_riepilogo")}, None
+        
+        # Conversione sicura della percentuale in intero
+        perc_val = 100
+        try: perc_val = int(dati.get("percentuale", 100))
+        except: pass
+
+        if dati.get("azione") == "alloca": return {"type": "alloca", "nome": dati.get("nome"), "perc": perc_val, "cliente": dati.get("cliente", "N/D"), "desc": dati.get("messaggio_riepilogo")}, None
         if dati.get("azione") == "promuovi": return {"type": "promuovi", "nome": dati.get("nome"), "nuova_sen": dati.get("nuova_seniority"), "desc": dati.get("messaggio_riepilogo")}, None
         return None, "Errore Parser LLM."
     except Exception as e: return None, f"Errore AI interno. Riprova."
@@ -607,12 +622,29 @@ if ruolo_utente == "Resource Allocation Engine":
                         st.session_state.team_data, use_container_width=True,
                         column_config={"Costo (€)": st.column_config.NumberColumn(step=50), "Margine (%)": st.column_config.NumberColumn(step=5)}
                     )
-                    costo_tot, prop_comm = 0, 0
+                    
+                    # FIX CALCOLO 0 EURO: Assicuriamo il parsing corretto dei numeri e il matching case-insensitive
+                    costo_tot = 0.0
+                    prop_comm = 0.0
+                    
                     for _, row in st.session_state.wbs_data.iterrows():
-                        m = st.session_state.team_data[st.session_state.team_data['Skill'] == row['Skill']]
-                        if not m.empty:
-                            c = row['Giorni'] * m.iloc[0]['Costo (€)']
-                            costo_tot += c; prop_comm += c * (1 + (m.iloc[0]['Margine (%)'] / 100))
+                        try:
+                            giorni = float(row.get('Giorni', 0))
+                            w_skill = str(row.get('Skill', '')).strip().lower()
+                            
+                            # Matching esatto e case-insensitive tra la WBS LLM e il Team generato
+                            mask = st.session_state.team_data['Skill'].astype(str).str.strip().str.lower() == w_skill
+                            m = st.session_state.team_data[mask]
+                            
+                            if not m.empty:
+                                costo_gg = float(m.iloc[0]['Costo (€)'])
+                                margine = float(m.iloc[0]['Margine (%)'])
+                                
+                                c = giorni * costo_gg
+                                costo_tot += c
+                                prop_comm += c * (1 + (margine / 100.0))
+                        except:
+                            continue
                     
                     st.markdown("<br><div style='font-size: 1.6rem; font-weight: 700; color: var(--text-color); margin-bottom: 15px;'>Previsione Finanziaria di Commessa</div>", unsafe_allow_html=True)
                     c1, c2, c3 = st.columns(3)
@@ -986,22 +1018,47 @@ elif ruolo_utente == "Talent Management":
 if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
     st.sidebar.markdown("<br><hr style='border-color: rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
     with st.sidebar.popover("Smart Assistant", use_container_width=True):
-        st.caption("Motore LLM LLaMA-3 (Attivo)" if st.session_state.groq_api_key else "Inserisci Chiave API per abilitare AI")
+        st.caption("Motore LLM LLaMA-3 (Attivo)" if st.session_state.groq_api_key else "Inserisci Chiave API nei Secrets per abilitare l'AI")
+        
         for m in st.session_state.chat_msgs: 
             st.chat_message(m["role"]).write(m["content"])
         
+        # FIX POPUP: Ripristinato il form interattivo di validazione
         if st.session_state.bot_action:
             act = st.session_state.bot_action
-            if st.button("Autorizza Transazione"): 
-                esegui_azione_chatbot(act); st.rerun()
-            if st.button("Sospendi"): 
-                st.session_state.bot_action = None; st.rerun()
+            st.markdown("### Conferma Dettagli")
+            with st.form("form_conferma_bot"):
+                if act['type'] == 'alloca':
+                    nuovo_nome = st.text_input("Risorsa Assegnata:", value=act.get('nome', ''))
+                    nuovo_cliente = st.text_input("Progetto/Cliente:", value=act.get('cliente', ''))
+                    nuova_perc = st.slider("Impegno Richiesto (%)", 0, 100, int(act.get('perc', 100)), 10)
+                elif act['type'] == 'promuovi':
+                    nuovo_nome = st.text_input("Risorsa Selezionata:", value=act.get('nome', ''))
+                    livelli = ["Junior", "Mid", "Senior"]
+                    curr = act.get('nuova_sen', 'Senior')
+                    nuova_sen = st.selectbox("Nuovo Livello Inquadramento:", livelli, index=livelli.index(curr) if curr in livelli else 2)
                 
-        if prompt := st.chat_input("Esegui istruzione..."):
-            st.session_state.chat_msgs.append({"role": "user", "content": prompt})
-            action, err = parse_chatbot_intent_llm(prompt, df_risorse, st.session_state.groq_api_key)
-            if err: 
-                st.session_state.chat_msgs.append({"role": "assistant", "content": err})
-            else: 
-                st.session_state.bot_action = action
-            st.rerun()
+                c1, c2 = st.columns(2)
+                if c1.form_submit_button("✅ Conferma Transazione", use_container_width=True):
+                    if act['type'] == 'alloca':
+                        act['nome'] = nuovo_nome
+                        act['cliente'] = nuovo_cliente
+                        act['perc'] = nuova_perc
+                    else:
+                        act['nome'] = nuovo_nome
+                        act['nuova_sen'] = nuova_sen
+                    esegui_azione_chatbot(act)
+                    st.rerun()
+                    
+                if c2.form_submit_button("❌ Sospendi e Annulla", use_container_width=True):
+                    st.session_state.bot_action = None
+                    st.rerun()
+        else:
+            if prompt := st.chat_input("Esegui istruzione (Es. 'Alloca Marco su Tim')..."):
+                st.session_state.chat_msgs.append({"role": "user", "content": prompt})
+                action, err = parse_chatbot_intent_llm(prompt, df_risorse, st.session_state.groq_api_key)
+                if err: 
+                    st.session_state.chat_msgs.append({"role": "assistant", "content": err})
+                else: 
+                    st.session_state.bot_action = action
+                st.rerun()
