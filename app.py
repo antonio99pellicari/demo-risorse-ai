@@ -7,6 +7,7 @@ import plotly.express as px
 import calendar
 import requests
 import json
+import io
 
 # ==========================================
 # 1. INIZIALIZZAZIONE E CONFIGURAZIONE
@@ -91,12 +92,12 @@ st.markdown("""
     .alert-blue { border-color: #3B82F6; }
     .alert-green { border-color: #10B981; }
     
-    /* CSS Scheduling Assistant Adattivo */
+    /* CSS Scheduling Assistant Adattivo (Fixato Allineamento Cella-Header) */
     .scheduling-container { overflow-x: auto; padding-bottom: 15px; margin-top: 20px; }
-    .scheduling-row { display: flex; align-items: center; margin-bottom: 4px; flex-wrap: nowrap; }
-    .scheduling-header { font-weight: 700; font-size: 11px; color: var(--kpi-text-sub); text-align: center; min-width: 35px; }
+    .scheduling-row { display: flex; align-items: center; margin-bottom: 4px; flex-wrap: nowrap; gap: 2px; }
+    .scheduling-header { font-weight: 700; font-size: 11px; color: var(--kpi-text-sub); text-align: center; min-width: 35px; width: 35px; }
     .scheduling-name { min-width: 180px; max-width: 180px; font-weight: 600; font-size: 14px; position: sticky; left: 0; background-color: var(--background-color); z-index: 2; padding-right: 15px; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
-    .scheduling-cell { min-width: 35px; height: 35px; margin-right: 2px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 600; }
+    .scheduling-cell { min-width: 35px; width: 35px; height: 35px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 600; }
 
     /* CSS Card ERP uniformi */
     .erp-card {
@@ -238,16 +239,15 @@ def genera_dati_strutturali():
     allocazioni = []
     timesheet = []
     
-    # Generazione organica e distribuita dell'Overbooking
+    # Generazione organica e distribuita dell'Overbooking su tutto il DB
     for _, risorsa in df_risorse.iterrows():
         id_risorsa = risorsa['ID']
-        # Assegna da 0 a 3 commesse per creare overbooking naturale (es. 50+60+40 = 150%)
+        # Da 0 a 3 commesse per creare overbooking naturale randomico
         num_commesse = random.choices([0, 1, 2, 3], weights=[0.25, 0.45, 0.20, 0.10])[0]
         
         if num_commesse > 0:
             commesse_assegnate = random.sample(df_commesse['ID_Commessa'].tolist(), k=num_commesse)
             for c_id in commesse_assegnate:
-                # Percentuali variabili per innescare facili sforamenti quando sommate
                 perc = random.choice([30, 40, 50, 60, 100])
                 allocazioni.append({"ID_Risorsa": id_risorsa, "ID_Commessa": c_id, "Impegno_%": perc})
                 
@@ -294,7 +294,7 @@ if "pending_approvals" not in st.session_state: st.session_state.pending_approva
 if "pending_allocations" not in st.session_state: st.session_state.pending_allocations = []
 if "pending_skills" not in st.session_state: st.session_state.pending_skills = []
 if "team_cal_idx" not in st.session_state: st.session_state.team_cal_idx = 0
-if "chat_msgs" not in st.session_state: st.session_state.chat_msgs = [{"role": "assistant", "content": "Smart Assistant inizializzato. Pronto a processare richieste (Es: 'Alloca Marco Rossi su PRJ-001 al 50%')"}]
+if "chat_msgs" not in st.session_state: st.session_state.chat_msgs = [{"role": "assistant", "content": "Smart Assistant inizializzato. Pronto a processare richieste (Es: 'Alloca Marco Rossi e Giulia Bianchi su Enel al 50%')"}]
 if "bot_action" not in st.session_state: st.session_state.bot_action = None
 
 # GESTIONE SICURA DELLA API KEY (ST.SECRETS)
@@ -331,7 +331,7 @@ def analizza_testo_llm(testo, api_key):
     
     ALTRIMENTI, estrai le fasi del progetto e le competenze necessarie.
     REGOLA FONDAMENTALE: Per il campo "Skill", DEVI scegliere ESCLUSIVAMENTE uno dei valori esatti da questo catalogo:
-    [{catalogo_skill}]. Non inventare nomi. Se trovi "Java (Spring Boot)", usa "Java" o "Spring Boot".
+    [{catalogo_skill}]. Non inventare nomi.
     
     Restituisci SOLO ED ESCLUSIVAMENTE un JSON valido:
     {{
@@ -367,10 +367,13 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
         return None, "🔑 L'Intelligenza Artificiale è disattivata."
 
     lista_nomi = ", ".join(df['Nome'].tolist())
-    system_prompt = f"""Sei uno Smart Assistant. Rispondi SOLO in formato JSON, senza alcun testo fuori dal JSON. Database Nomi: {lista_nomi}
-    1. ALLOCARE: {{"azione": "alloca", "nome": "Nome Cognome", "percentuale": 50, "cliente": "ID_Commessa", "messaggio_riepilogo": "Allocazione..."}}
-    2. PROMUOVERE: {{"azione": "promuovi", "nome": "Nome Cognome", "nuova_seniority": "Senior", "messaggio_riepilogo": "Upgrade..."}}
-    3. ALTRO (Testo non valido/Saluti): {{"azione": "errore", "messaggio_riepilogo": "Comando non riconosciuto."}}"""
+    system_prompt = f"""Sei uno Smart Assistant. Rispondi SOLO in formato JSON. 
+    L'utente potrebbe richiedere azioni su PIÙ RISORSE. Estrai TUTTI i nomi richiesti.
+    Database Nomi (Usa solo i nomi che matchano da qui): {lista_nomi}
+    
+    1. ALLOCARE: {{"azione": "alloca", "nomi": ["Nome Cognome 1", "Nome Cognome 2"], "percentuale": 50, "cliente": "ID_Commessa", "messaggio_riepilogo": "Allocazione..."}}
+    2. PROMUOVERE: {{"azione": "promuovi", "nomi": ["Nome Cognome 1"], "nuova_seniority": "Senior", "messaggio_riepilogo": "Upgrade..."}}
+    3. ALTRO: {{"azione": "errore", "messaggio_riepilogo": "Comando non riconosciuto."}}"""
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -378,7 +381,7 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
         response = requests.post(url, headers=headers, json=payload)
         
         if response.status_code != 200:
-            return None, f"Errore API Groq ({response.status_code}). Verifica validità o limiti API Key."
+            return None, f"Errore API Groq ({response.status_code}). Verifica validità."
 
         txt = response.json()["choices"][0]["message"]["content"]
         match = re.search(r'\{.*\}', txt, re.DOTALL)
@@ -391,30 +394,40 @@ def parse_chatbot_intent_llm(prompt, df, api_key):
         try: perc_val = int(dati.get("percentuale", 100))
         except: pass
 
-        if dati.get("azione") == "alloca": return {"type": "alloca", "nome": dati.get("nome"), "perc": perc_val, "cliente": dati.get("cliente", "N/D"), "desc": dati.get("messaggio_riepilogo")}, None
-        if dati.get("azione") == "promuovi": return {"type": "promuovi", "nome": dati.get("nome"), "nuova_sen": dati.get("nuova_seniority"), "desc": dati.get("messaggio_riepilogo")}, None
+        if dati.get("azione") == "alloca": return {"type": "alloca", "nomi": dati.get("nomi", []), "perc": perc_val, "cliente": dati.get("cliente", "N/D"), "desc": dati.get("messaggio_riepilogo")}, None
+        if dati.get("azione") == "promuovi": return {"type": "promuovi", "nomi": dati.get("nomi", []), "nuova_sen": dati.get("nuova_seniority"), "desc": dati.get("messaggio_riepilogo")}, None
         return None, "Errore Parser LLM."
     except Exception as e: return None, f"Errore AI interno. Riprova."
 
 def esegui_azione_chatbot(dati_finali):
-    df_ris = st.session_state.df_risorse
-    idx_ris = df_ris[df_ris['Nome'] == dati_finali['nome']].index
-    if len(idx_ris) == 0:
-        st.session_state.chat_msgs.append({"role": "assistant", "content": "Risorsa non trovata nell'anagrafica Master."})
-        st.session_state.bot_action = None
-        return
-    id_risorsa = df_ris.iloc[idx_ris[0]]['ID']
-    if dati_finali['type'] == 'alloca':
-        nuova = pd.DataFrame([{"ID_Risorsa": id_risorsa, "ID_Commessa": dati_finali['cliente'], "Impegno_%": dati_finali['perc']}])
-        st.session_state.df_allocazioni = pd.concat([st.session_state.df_allocazioni, nuova], ignore_index=True)
-        msg = f"Task Eseguito: **{dati_finali['nome']}** agganciato a **{dati_finali['cliente']}** ({dati_finali['perc']}%)."
-    elif dati_finali['type'] == 'promuovi':
-        rp = df_ris.at[idx_ris[0], 'Ruolo'].replace('Senior ', '').replace('Mid ', '').replace('Junior ', '')
-        st.session_state.df_risorse.at[idx_ris[0], 'Seniority'] = dati_finali['nuova_sen']
-        st.session_state.df_risorse.at[idx_ris[0], 'Ruolo'] = f"{dati_finali['nuova_sen']} {rp}"
-        msg = f"Task Eseguito: **{dati_finali['nome']}** promosso a **{dati_finali['nuova_sen']}**."
+    nomi = dati_finali.get('nomi', [])
+    if not nomi and dati_finali.get('nome'): nomi = [dati_finali['nome']]
+    
+    eseguiti = []
+    for nome in nomi:
+        df_ris = st.session_state.df_risorse
+        idx_ris = df_ris[df_ris['Nome'] == nome.strip()].index
+        if len(idx_ris) == 0: continue
+        
+        id_risorsa = df_ris.iloc[idx_ris[0]]['ID']
+        if dati_finali['type'] == 'alloca':
+            nuova = pd.DataFrame([{"ID_Risorsa": id_risorsa, "ID_Commessa": dati_finali['cliente'], "Impegno_%": dati_finali['perc']}])
+            st.session_state.df_allocazioni = pd.concat([st.session_state.df_allocazioni, nuova], ignore_index=True)
+            eseguiti.append(nome)
+        elif dati_finali['type'] == 'promuovi':
+            rp = df_ris.at[idx_ris[0], 'Ruolo'].replace('Senior ', '').replace('Mid ', '').replace('Junior ', '')
+            st.session_state.df_risorse.at[idx_ris[0], 'Seniority'] = dati_finali['nuova_sen']
+            st.session_state.df_risorse.at[idx_ris[0], 'Ruolo'] = f"{dati_finali['nuova_sen']} {rp}"
+            eseguiti.append(nome)
+            
+    if eseguiti:
+        if dati_finali['type'] == 'alloca': msg = f"Task Eseguito: **{', '.join(eseguiti)}** agganciati a **{dati_finali['cliente']}** ({dati_finali['perc']}%)."
+        else: msg = f"Task Eseguito: **{', '.join(eseguiti)}** promossi a **{dati_finali['nuova_sen']}**."
+        st.session_state.chat_msgs.append({"role": "assistant", "content": msg})
+    else:
+        st.session_state.chat_msgs.append({"role": "assistant", "content": "Nessuna risorsa trovata per l'azione richiesta."})
+        
     st.session_state.bot_action = None
-    st.session_state.chat_msgs.append({"role": "assistant", "content": msg})
 
 
 # ==========================================
@@ -559,15 +572,9 @@ if ruolo_utente == "Resource Allocation Engine":
                         st.markdown(f"<div class='alert-box alert-blue'>L'utente <b>{req['Nome']}</b> ha richiesto l'allocazione al {req['Occupazione']}% sul progetto {req['Progetto']}. (Autorizzabile in Resource Allocation).</div>", unsafe_allow_html=True)
 
                 if len(st.session_state.pending_skills) > 0:
-                    st.markdown("<h3 style='color: #10B981; margin-top:20px;'>Richieste Integrazione Skill (Da Validare)</h3>", unsafe_allow_html=True)
+                    st.markdown("<h3 style='color: #10B981; margin-top:20px;'>Richieste Integrazione Skill</h3>", unsafe_allow_html=True)
                     for i, s in enumerate(list(st.session_state.pending_skills)):
-                        st.markdown(f"<div class='alert-box alert-green'>La risorsa <b>{s['Risorsa']}</b> richiede l'aggiunta in anagrafica della competenza tecnica: <b>{s['Skill']}</b>.</div>", unsafe_allow_html=True)
-                        if st.button("Conferma e Inserisci in DB", key=f"app_skill_{i}"):
-                            idx_ris = df_risorse.index[df_risorse['Nome'] == s['Risorsa']].tolist()[0]
-                            old_skills = st.session_state.df_risorse.at[idx_ris, 'Skill']
-                            st.session_state.df_risorse.at[idx_ris, 'Skill'] = f"{old_skills}, {s['Skill']}"
-                            st.session_state.pending_skills.pop(i)
-                            st.rerun()
+                        st.markdown(f"<div class='alert-box alert-green'>La risorsa <b>{s['Risorsa']}</b> richiede l'aggiunta in anagrafica della competenza tecnica: <b>{s['Skill']}</b>. (Approva/Rifiuta da Resource Allocation).</div>", unsafe_allow_html=True)
 
         elif pagina_pm == "Project Hub":
             st.markdown("<h1 class='gradient-title'>Project Hub</h1>", unsafe_allow_html=True)
@@ -611,7 +618,22 @@ if ruolo_utente == "Resource Allocation Engine":
                             st.session_state.pending_allocations.pop(i); st.rerun()
                         if b2.button("Rigetta Richiesta", key=f"ko_{i}"):
                             st.session_state.pending_allocations.pop(i); st.rerun()
-            else: st.caption("La coda delle richieste utente è vuota.")
+            else: st.caption("Nessuna coda attiva.")
+            
+            st.subheader("Richieste Integrazione Skill (Da Validare)")
+            if len(st.session_state.pending_skills) > 0:
+                for i, s in enumerate(list(st.session_state.pending_skills)):
+                    with st.container(border=True):
+                        st.write(f"**{s['Risorsa']}** richiede l'aggiunta di: **{s['Skill']}**")
+                        b1, b2 = st.columns(2)
+                        if b1.button("Approva Competenza", key=f"app_skill_{i}"):
+                            idx_ris = df_risorse.index[df_risorse['Nome'] == s['Risorsa']].tolist()[0]
+                            old_skills = st.session_state.df_risorse.at[idx_ris, 'Skill']
+                            st.session_state.df_risorse.at[idx_ris, 'Skill'] = f"{old_skills}, {s['Skill']}"
+                            st.session_state.pending_skills.pop(i); st.rerun()
+                        if b2.button("Rifiuta Richiesta", key=f"rej_skill_{i}"):
+                            st.session_state.pending_skills.pop(i); st.rerun()
+            else: st.caption("Nessuna skill da approvare.")
             
             st.divider()
             col_l, col_r = st.columns(2)
@@ -622,7 +644,8 @@ if ruolo_utente == "Resource Allocation Engine":
                     commesse_disp = df_commesse['ID_Commessa'] + " - " + df_commesse['Cliente']
                     c_scelta = st.selectbox("Seleziona Progetto/Commessa:", commesse_disp.tolist())
                     perc = st.slider("Assegnazione Impegno (%)", 0, 100, 100, 25)
-                    if st.form_submit_button("Esegui Forzatura / Assegna"):
+                    dt_req = st.date_input("Durata progetto", value=(datetime.today(), datetime.today()+timedelta(days=30)))
+                    if st.form_submit_button("Esegui Forzatura / Assegna") and len(dt_req)==2:
                         id_risorsa = df_risorse[df_risorse['Nome'] == r_scelta]['ID'].values[0]
                         id_commessa = c_scelta.split(" - ")[0]
                         nuova_alloc = pd.DataFrame([{"ID_Risorsa": id_risorsa, "ID_Commessa": id_commessa, "Impegno_%": perc}])
@@ -644,17 +667,21 @@ if ruolo_utente == "Resource Allocation Engine":
         elif pagina_pm == "Allocation Advisor":
             st.markdown("<h1 class='gradient-title'>Allocation Advisor</h1>", unsafe_allow_html=True)
             
+            st.markdown("<p style='font-size:14px; color:var(--kpi-text-sub);'>💡 L'integrazione nativa di formati come PDF o Word è un'estensione banale (richiede l'installazione in ambiente di librerie come PyPDF2). Per comodità ambientale, è abilitato l'upload immediato da file di testo (<b>.txt</b>).</p>", unsafe_allow_html=True)
+            uploaded_file = st.file_uploader("Importa Brief di Progetto (.txt)", type=['txt'])
+            
             prompt_random = [
                 "Sviluppo di un sistema ERP Cloud-native per la logistica aziendale. Il frontend deve essere realizzato interamente in React utilizzando TypeScript. Il backend richiede una solida architettura a microservizi sviluppata in Go e Node.js. È fondamentale l'implementazione di pipeline CI/CD con GitHub Actions, containerizzazione tramite Docker e orchestrazione Kubernetes su AWS. Necessario anche un esperto per l'ottimizzazione del database PostgreSQL e l'analisi predittiva (Python/Pandas).",
                 "Rifacimento completo del portale di Home Banking e transazioni sicure. La sicurezza è la priorità: richiesto framework Angular per la web app responsive e Java (Spring Boot) per i processi core di transazione. Il team deve includere DevOps Engineer per la gestione dell'infrastruttura Terraform su cloud AWS, oltre a Data Analyst qualificati per la reportistica direzionale tramite SQL e PowerBI.",
-                "Creazione di una piattaforma IoT Edge per il monitoraggio in tempo reale di macchinari industriali. I dati provenienti dai sensori verranno raccolti tramite script Python e processati con algoritmi avanzati di Machine Learning (Scikit-learn). La dashboard di controllo per gli operatori sarà sviluppata in Vue.js. L'infrastruttura backend poggerà completamente su servizi cloud AWS serverless (Lambda e DynamoDB).",
-                "Progetto di modernizzazione e migrazione di un CRM Legacy. Migrazione massiva dei dati storici in SQL verso un nuovo database documentale NoSQL. Il frontend applicativo sarà ricostruito da zero sfruttando React. Serve un Business Analyst per la mappatura dei processi BPMN e la gestione dei requisiti tecnici, affiancato da un Project Manager specializzato in Agile/Scrum per coordinare gli sprint di sviluppo.",
-                "Sviluppo di una piattaforma e-learning video-based ad alto traffico. Il backend per la gestione dello streaming e degli utenti sarà scritto in Node.js con storage distribuito su AWS S3. Il client web necessita di competenze avanzate in HTML/CSS e TypeScript. È richiesta inoltre la presenza di un Data Scientist che si occuperà di creare il motore di raccomandazione dei corsi basato in Python e logiche SQL complesse.",
-                "Sviluppo architettura GenAI Chatbot integrata nel portale HR interno. Richiesta conoscenza approfondita di LangChain e Python per orchestrare le chiamate LLM, oltre alla gestione di un database vettoriale (es. Pinecone). Il layer di interfaccia sarà basato su React e il deployment avverrà tramite Kubernetes su cluster privato."
+                "Creazione di una piattaforma IoT Edge per il monitoraggio in tempo reale di macchinari industriali. I dati provenienti dai sensori verranno raccolti tramite script Python e processati con algoritmi avanzati di Machine Learning (Scikit-learn). La dashboard di controllo per gli operatori sarà sviluppata in Vue.js. L'infrastruttura backend poggerà completamente su servizi cloud AWS serverless (Lambda e DynamoDB)."
             ]
             
             if "saved_testo_brief" not in st.session_state: st.session_state.saved_testo_brief = ""
-            if st.button("Generazione automatica di prompt per fase Test"):
+            
+            if uploaded_file is not None:
+                stringio = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
+                st.session_state.saved_testo_brief = stringio.read()
+            elif st.button("Generazione automatica di prompt per fase Test"):
                 st.session_state.saved_testo_brief = random.choice(prompt_random)
                 
             testo = st.text_area("Input Requirement (Descrizione del progetto):", value=st.session_state.saved_testo_brief, height=140)
@@ -672,20 +699,17 @@ if ruolo_utente == "Resource Allocation Engine":
                     team = []
                     for skill in skill_richieste:
                         risorsa_trovata = False
-                        
                         clean_skill_req = skill.lower().replace("(", "").replace(")", "")
                         
                         for _, r in df_risorse.iterrows():
                             if get_saturazione(r['ID'], df_allocazioni) < 100:
                                 db_skills = r['Skill'].lower()
                                 is_match = clean_skill_req in db_skills
-                                
                                 if not is_match:
                                     for word in clean_skill_req.split():
                                         if len(word) > 2 and word in db_skills:
                                             is_match = True
                                             break
-                                            
                                 if is_match:
                                     team.append({"Skill": skill, "Nome": r['Nome'], "Costo (€)": r['Costo_Giorno'], "Margine (%)": 30})
                                     risorsa_trovata = True
@@ -708,7 +732,8 @@ if ruolo_utente == "Resource Allocation Engine":
                         }
                     )
                 with tab_team:
-                    st.session_state.team_data = st.data_editor(
+                    # Legatura solida dell'edited dataframe alla session_state per i ricalcoli
+                    edited_team = st.data_editor(
                         st.session_state.team_data, 
                         use_container_width=True,
                         column_config={
@@ -716,19 +741,20 @@ if ruolo_utente == "Resource Allocation Engine":
                             "Margine (%)": st.column_config.NumberColumn("Margine (%)", min_value=0, max_value=100, step=1)
                         }
                     )
+                    st.session_state.team_data = edited_team
                     
                     costo_tot = 0.0
                     prop_comm = 0.0
                     
                     for _, row in st.session_state.wbs_data.iterrows():
                         try:
-                            # FIX NaN: Conversione forzata a 0 se manca il valore nel form
                             giorni = pd.to_numeric(row.get('Giorni', 0), errors='coerce')
                             if pd.isna(giorni): giorni = 0.0
                             
                             w_skill = str(row.get('Skill', '')).strip().lower()
-                            mask = st.session_state.team_data['Skill'].astype(str).str.strip().str.lower() == w_skill
-                            m = st.session_state.team_data[mask]
+                            # Uso esplicito di edited_team per i conti dinamici al volo
+                            mask = edited_team['Skill'].astype(str).str.strip().str.lower() == w_skill
+                            m = edited_team[mask]
                             
                             if not m.empty:
                                 costo_gg = pd.to_numeric(m.iloc[0]['Costo (€)'], errors='coerce')
@@ -895,14 +921,15 @@ if ruolo_utente == "Resource Allocation Engine":
                 
                 with col_right:
                     st.subheader("Storico Progetti (Completati)")
-                    st.markdown("<div style='padding:15px; border-radius:8px; border:1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+                    html_storico = "<div style='padding:15px; border-radius:8px; border:1px solid rgba(128,128,128,0.2);'>"
                     if dati['Seniority'] == "Junior":
-                        st.markdown("🔹 **Progetto Formativo Cloud** (100%) - *Durata: 3 Mesi*<br>🔹 **Assistenza Frontend E-Commerce** (50%) - *Durata: 2 Mesi*", unsafe_allow_html=True)
+                        html_storico += "🔹 <b>Progetto Formativo Cloud</b> (100%) - <i>Durata: 3 Mesi</i><br>🔹 <b>Assistenza Frontend E-Commerce</b> (50%) - <i>Durata: 2 Mesi</i>"
                     elif dati['Seniority'] == "Mid":
-                        st.markdown("🔹 **Migrazione CRM Fastweb** (100%) - *Durata: 8 Mesi*<br>🔹 **Sviluppo Portale API** (100%) - *Durata: 5 Mesi*<br>🔹 **Bug Fixing App Mobile** (30%) - *Durata: 6 Mesi*", unsafe_allow_html=True)
+                        html_storico += "🔹 <b>Migrazione CRM Fastweb</b> (100%) - <i>Durata: 8 Mesi</i><br>🔹 <b>Sviluppo Portale API</b> (100%) - <i>Durata: 5 Mesi</i><br>🔹 <b>Bug Fixing App Mobile</b> (30%) - <i>Durata: 6 Mesi</i>"
                     else:
-                        st.markdown("🔹 **Architettura Cloud BPER** (100%) - *Durata: 12 Mesi*<br>🔹 **Tech Lead Progetto IoT** (50%) - *Durata: 9 Mesi*<br>🔹 **Rifacimento Core Banking** (80%) - *Durata: 18 Mesi*", unsafe_allow_html=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
+                        html_storico += "🔹 <b>Architettura Cloud BPER</b> (100%) - <i>Durata: 12 Mesi</i><br>🔹 <b>Tech Lead Progetto IoT</b> (50%) - <i>Durata: 9 Mesi</i><br>🔹 <b>Rifacimento Core Banking</b> (80%) - <i>Durata: 18 Mesi</i>"
+                    html_storico += "</div>"
+                    st.markdown(html_storico, unsafe_allow_html=True)
 
         elif pagina_pm == "Resource Master Data":
             st.markdown("<h1 class='gradient-title'>Resource Master Data</h1>", unsafe_allow_html=True)
@@ -1092,18 +1119,20 @@ elif ruolo_utente == "Talent Management":
 
         elif pagina_hr == "Career Development":
             st.markdown("<h1 class='gradient-title'>Career Development</h1>", unsafe_allow_html=True)
-            n_sel = st.selectbox("Seleziona Collaboratore dal Master Data:", df_risorse['Nome'].tolist())
-            if n_sel:
-                idx = df_risorse.index[df_risorse['Nome']==n_sel].tolist()[0]
-                dati = df_risorse.iloc[idx]
+            n_sel_list = st.multiselect("Seleziona Collaboratori dal Master Data (Selezione Multipla):", df_risorse['Nome'].tolist())
+            if n_sel_list:
+                idx_0 = df_risorse.index[df_risorse['Nome']==n_sel_list[0]].tolist()[0]
+                dati_0 = df_risorse.iloc[idx_0]
                 with st.form("mod"):
-                    st.write(f"Gestione Upgrade: **{n_sel}**")
+                    st.write(f"Gestione Upgrade Massivo per: **{', '.join(n_sel_list)}**")
                     c1, c2 = st.columns(2)
-                    sen = c1.selectbox("Nuovo Livello", ["Junior", "Mid", "Senior"], index=["Junior", "Mid", "Senior"].index(dati['Seniority']))
-                    costo_gg = c2.number_input("Nuovo Costo Giornaliero (€)", value=int(dati['Costo_Giorno']), step=10)
+                    sen = c1.selectbox("Nuovo Livello per tutti", ["Junior", "Mid", "Senior"], index=["Junior", "Mid", "Senior"].index(dati_0['Seniority']))
+                    costo_gg = c2.number_input("Nuovo Costo Giornaliero (€) per tutti", value=int(dati_0['Costo_Giorno']), step=10)
                     if st.form_submit_button("Esegui Manutenzione Parametri"):
-                        st.session_state.df_risorse.at[idx, 'Seniority'] = sen
-                        st.session_state.df_risorse.at[idx, 'Costo_Giorno'] = costo_gg
+                        for n_sel in n_sel_list:
+                            idx = df_risorse.index[df_risorse['Nome']==n_sel].tolist()[0]
+                            st.session_state.df_risorse.at[idx, 'Seniority'] = sen
+                            st.session_state.df_risorse.at[idx, 'Costo_Giorno'] = costo_gg
                         st.success("Dati aggiornati correttamente nell'ERP Centrale."); st.rerun()
 
         elif pagina_hr == "ERP Integration":
@@ -1153,11 +1182,15 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
             st.markdown("### Conferma Dettagli")
             with st.form("form_conferma_bot"):
                 if act['type'] == 'alloca':
-                    nuovo_nome = st.text_input("Risorsa Assegnata:", value=act.get('nome', ''))
+                    val_nomi = ", ".join(act.get('nomi', []))
+                    if not val_nomi and 'nome' in act: val_nomi = act['nome']
+                    nuovi_nomi = st.text_input("Risorse Assegnate (separate da virgola):", value=val_nomi)
                     nuovo_cliente = st.text_input("Progetto/Cliente:", value=act.get('cliente', ''))
                     nuova_perc = st.slider("Impegno Richiesto (%)", 0, 100, int(act.get('perc', 100)), 10)
                 elif act['type'] == 'promuovi':
-                    nuovo_nome = st.text_input("Risorsa Selezionata:", value=act.get('nome', ''))
+                    val_nomi = ", ".join(act.get('nomi', []))
+                    if not val_nomi and 'nome' in act: val_nomi = act['nome']
+                    nuovi_nomi = st.text_input("Risorse Selezionate (separate da virgola):", value=val_nomi)
                     livelli = ["Junior", "Mid", "Senior"]
                     curr = act.get('nuova_sen', 'Senior')
                     nuova_sen = st.selectbox("Nuovo Livello Inquadramento:", livelli, index=livelli.index(curr) if curr in livelli else 2)
@@ -1165,11 +1198,11 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
                 c1, c2 = st.columns(2)
                 if c1.form_submit_button("✅ Conferma", use_container_width=True):
                     if act['type'] == 'alloca':
-                        act['nome'] = nuovo_nome
+                        act['nomi'] = [n.strip() for n in nuovi_nomi.split(",") if n.strip()]
                         act['cliente'] = nuovo_cliente
                         act['perc'] = nuova_perc
                     else:
-                        act['nome'] = nuovo_nome
+                        act['nomi'] = [n.strip() for n in nuovi_nomi.split(",") if n.strip()]
                         act['nuova_sen'] = nuova_sen
                     esegui_azione_chatbot(act)
                     st.rerun()
@@ -1178,7 +1211,7 @@ if (st.session_state.pm_logged_in or st.session_state.hr_logged_in):
                     st.session_state.bot_action = None
                     st.rerun()
         else:
-            if prompt := st.chat_input("Esegui istruzione (Es. 'Alloca Marco su Tim')..."):
+            if prompt := st.chat_input("Esegui istruzione..."):
                 st.session_state.chat_msgs.append({"role": "user", "content": prompt})
                 action, err = parse_chatbot_intent_llm(prompt, df_risorse, st.session_state.groq_api_key)
                 if err: 
