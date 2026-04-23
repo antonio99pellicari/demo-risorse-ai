@@ -730,7 +730,6 @@ if ruolo_utente == "Resource Allocation Engine":
         elif pagina_pm == "Allocation Advisor":
             st.markdown("<h1 class='gradient-title'>Allocation Advisor</h1>", unsafe_allow_html=True)
             
-            st.markdown("<p style='font-size:14px; color:var(--kpi-text-sub);'>💡 L'integrazione nativa di formati come PDF o Word è un'estensione banale (richiede l'installazione in ambiente di librerie come PyPDF2). Per comodità ambientale, è abilitato l'upload immediato da file di testo (<b>.txt</b>).</p>", unsafe_allow_html=True)
             uploaded_file = st.file_uploader("Importa Brief di Progetto (.txt)", type=['txt'])
             
             prompt_random = [
