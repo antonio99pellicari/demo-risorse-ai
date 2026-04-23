@@ -663,13 +663,13 @@ if ruolo_utente == "Resource Allocation Engine":
                     with st.container(border=True):
                         st.write(f"Utente **{req['Nome']}** ha richiesto {req['Occupazione']}% su **{req['Progetto']}** (Finestra: {formatta_data(req['Dal'])} -> {formatta_data(req['Al'])})")
                         b1, b2 = st.columns(2)
-                        if b1.button("Autorizza Assegnazione", key=f"ok_{i}"):
+                        if b1.button("Approva Richiesta", key=f"ok_{i}"):
                             id_ris = df_risorse[df_risorse['Nome'] == req['Nome']]['ID'].values[0]
                             nuova = pd.DataFrame([{"ID_Risorsa": id_ris, "ID_Commessa": req['Progetto'], "Impegno_%": req['Occupazione']}])
                             st.session_state.df_allocazioni = pd.concat([st.session_state.df_allocazioni, nuova], ignore_index=True)
                             st.session_state.pending_allocations.pop(i)
                             st.rerun()
-                        if b2.button("Rigetta Richiesta", key=f"ko_{i}"):
+                        if b2.button("Rifiuta Richiesta", key=f"ko_{i}"):
                             st.session_state.pending_allocations.pop(i)
                             st.rerun()
             else:
