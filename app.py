@@ -560,7 +560,7 @@ if ruolo_utente == "Resource Allocation Engine":
             
         pagina_pm = st.session_state.active_sub if st.session_state.active_sub else st.session_state.active_macro
             
-        if st.sidebar.button("Termina Sessione Corrente"):
+        if st.sidebar.button("Logout", key="logout_pm"):
             st.session_state.pm_logged_in = False
             st.rerun()
 
@@ -605,26 +605,26 @@ if ruolo_utente == "Resource Allocation Engine":
                 st.success("Nessun conflitto logico rilevato. Parametri operativi entro i limiti di sistema.")
             else:
                 if not overbooked.empty:
-                    st.markdown("<h3 style='color: #EF4444;'>Allarmi di Overbooking Critico</h3>", unsafe_allow_html=True)
-                    for _, r in overbooked.iterrows():
-                        match = df_risorse[df_risorse['ID'] == r['ID_Risorsa']]
-                        nome_ris = match['Nome'].values[0] if not match.empty else r['ID_Risorsa']
-                        st.markdown(f"<div class='alert-box alert-red'>Il record <b>{nome_ris}</b> ({r['ID_Risorsa']}) è allocato oltre il limite ({r['Impegno_%']}%). Richiesto intervento in Resource Allocation.</div>", unsafe_allow_html=True)
+                    with st.expander(f"🔴 Allarmi di Overbooking Critico ({len(overbooked)})"):
+                        for _, r in overbooked.iterrows():
+                            match = df_risorse[df_risorse['ID'] == r['ID_Risorsa']]
+                            nome_ris = match['Nome'].values[0] if not match.empty else r['ID_Risorsa']
+                            st.markdown(f"<div class='alert-box alert-red'>Il record <b>{nome_ris}</b> ({r['ID_Risorsa']}) è allocato oltre il limite ({r['Impegno_%']}%). Richiesto intervento in Resource Allocation.</div>", unsafe_allow_html=True)
                 
                 if len(commesse_loss) > 0:
-                    st.markdown("<h3 style='color: #F59E0B; margin-top:20px;'>Allarmi Erosione Margine</h3>", unsafe_allow_html=True)
-                    for _, c in commesse_loss.iterrows():
-                        st.markdown(f"<div class='alert-box alert-orange'>La commessa <b>{c['ID_Commessa']}</b> ha superato il budget stimato.<br>Costo Consuntivato: <b>{formatta_valuta(c['Costo_Tot_Riga'])}</b> | Budget Originale: <b>{formatta_valuta(c['Budget'])}</b>.</div>", unsafe_allow_html=True)
+                    with st.expander(f"🟠 Allarmi Erosione Margine ({len(commesse_loss)})"):
+                        for _, c in commesse_loss.iterrows():
+                            st.markdown(f"<div class='alert-box alert-orange'>La commessa <b>{c['ID_Commessa']}</b> ha superato il budget stimato.<br>Costo Consuntivato: <b>{formatta_valuta(c['Costo_Tot_Riga'])}</b> | Budget Originale: <b>{formatta_valuta(c['Budget'])}</b>.</div>", unsafe_allow_html=True)
                 
                 if len(st.session_state.pending_allocations) > 0:
-                    st.markdown("<h3 style='color: #3B82F6; margin-top:20px;'>Richieste in Sospeso (Workspace)</h3>", unsafe_allow_html=True)
-                    for req in st.session_state.pending_allocations:
-                        st.markdown(f"<div class='alert-box alert-blue'>L'utente <b>{req['Nome']}</b> ha richiesto l'allocazione al {req['Occupazione']}% sul progetto {req['Progetto']}. (Autorizzabile in Resource Allocation).</div>", unsafe_allow_html=True)
+                    with st.expander(f"🔵 Richieste in Sospeso (Workspace) ({len(st.session_state.pending_allocations)})"):
+                        for req in st.session_state.pending_allocations:
+                            st.markdown(f"<div class='alert-box alert-blue'>L'utente <b>{req['Nome']}</b> ha richiesto l'allocazione al {req['Occupazione']}% sul progetto {req['Progetto']}. (Autorizzabile in Resource Allocation).</div>", unsafe_allow_html=True)
 
                 if len(st.session_state.pending_skills) > 0:
-                    st.markdown("<h3 style='color: #10B981; margin-top:20px;'>Richieste Integrazione Skill</h3>", unsafe_allow_html=True)
-                    for i, s in enumerate(list(st.session_state.pending_skills)):
-                        st.markdown(f"<div class='alert-box alert-green'>La risorsa <b>{s['Risorsa']}</b> richiede l'aggiunta in anagrafica della competenza tecnica: <b>{s['Skill']}</b>. (Approva/Rifiuta da Resource Allocation).</div>", unsafe_allow_html=True)
+                    with st.expander(f"🟢 Richieste Integrazione Skill ({len(st.session_state.pending_skills)})"):
+                        for i, s in enumerate(list(st.session_state.pending_skills)):
+                            st.markdown(f"<div class='alert-box alert-green'>La risorsa <b>{s['Risorsa']}</b> richiede l'aggiunta in anagrafica della competenza tecnica: <b>{s['Skill']}</b>. (Approva/Rifiuta da Resource Allocation).</div>", unsafe_allow_html=True)
 
         elif pagina_pm == "Project Hub":
             st.markdown("<h1 class='gradient-title'>Project Hub</h1>", unsafe_allow_html=True)
@@ -1174,7 +1174,7 @@ elif ruolo_utente == "Talent Management":
             
         pagina_hr = st.session_state.hr_active_sub if st.session_state.hr_active_sub else st.session_state.hr_active_macro
         
-        if st.sidebar.button("Termina Sessione"):
+        if st.sidebar.button("Logout", key="logout_hr"):
             st.session_state.hr_logged_in = False
             st.rerun()
 
