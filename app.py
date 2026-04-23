@@ -723,36 +723,38 @@ if ruolo_utente == "Resource Allocation Engine":
                 tab_wbs, tab_team = st.tabs(["Work Breakdown Structure (WBS)", "Assessment Economico Team"])
                 
                 with tab_wbs: 
-                    st.session_state.wbs_data = st.data_editor(
+                    # Uso di una variabile locale per non forzare il reset della key del data_editor
+                    edited_wbs = st.data_editor(
                         st.session_state.wbs_data, 
                         num_rows="dynamic", 
                         use_container_width=True,
+                        key="wbs_grid",
                         column_config={
                             "Giorni": st.column_config.NumberColumn("Giorni", min_value=1, step=1)
                         }
                     )
                 with tab_team:
-                    # Legatura solida dell'edited dataframe alla session_state per i ricalcoli
+                    # FIX FOCUS FRECCETTE: uso edited_team come render ma non sovrascrivo lo state!
                     edited_team = st.data_editor(
                         st.session_state.team_data, 
                         use_container_width=True,
+                        key="team_grid",
                         column_config={
                             "Costo (€)": st.column_config.NumberColumn("Costo (€)", min_value=0, step=10),
                             "Margine (%)": st.column_config.NumberColumn("Margine (%)", min_value=0, max_value=100, step=1)
                         }
                     )
-                    st.session_state.team_data = edited_team
                     
                     costo_tot = 0.0
                     prop_comm = 0.0
                     
-                    for _, row in st.session_state.wbs_data.iterrows():
+                    # Calcoliamo i totali basandoci sui dati appena editati nell'UI (edited_wbs / edited_team)
+                    for _, row in edited_wbs.iterrows():
                         try:
                             giorni = pd.to_numeric(row.get('Giorni', 0), errors='coerce')
                             if pd.isna(giorni): giorni = 0.0
                             
                             w_skill = str(row.get('Skill', '')).strip().lower()
-                            # Uso esplicito di edited_team per i conti dinamici al volo
                             mask = edited_team['Skill'].astype(str).str.strip().str.lower() == w_skill
                             m = edited_team[mask]
                             
