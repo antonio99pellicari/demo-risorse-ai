@@ -1181,7 +1181,7 @@ elif ruolo_utente == "Talent Management":
         if pagina_hr == "Homepage":
             st.markdown("<h1 class='gradient-title'>Talent Management Metrics</h1>", unsafe_allow_html=True)
             c1, c2, c3 = st.columns(3)
-            c1.markdown(f"<div class='kpi-card blue'><h3>Headcount Aggregato</h3><h2>{len(df_risorse)}</h2></div>", unsafe_allow_html=True)
+            c1.markdown(f"<div class='kpi-card blue'><h3>Risorse Disponibili</h3><h2>{len(df_risorse)}</h2></div>", unsafe_allow_html=True)
             c2.markdown(f"<div class='kpi-card orange'><h3>Indice Età Teorico</h3><h2>32 Anni</h2></div>", unsafe_allow_html=True)
             c3.markdown(f"<div class='kpi-card green'><h3>Costo Base Ponderato</h3><h2>{formatta_valuta(df_risorse['Costo_Giorno'].mean())}</h2></div>", unsafe_allow_html=True)
 
