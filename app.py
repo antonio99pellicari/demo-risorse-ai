@@ -580,7 +580,7 @@ if ruolo_utente == "Resource Allocation Engine":
                 revenue_attiva_gg = (df_alloc_tariffe['Tariffa_Vendita'] * (df_alloc_tariffe['Impegno_%'] / 100)).sum()
             
             c1, c2, c3, c4 = st.columns(4)
-            c1.markdown(f"<div class='kpi-card blue'><h3>Database Attivo</h3><h2>{tot_risorse}</h2></div>", unsafe_allow_html=True)
+            c1.markdown(f"<div class='kpi-card blue'><h3>Risorse Disponibili</h3><h2>{tot_risorse}</h2></div>", unsafe_allow_html=True)
             c2.markdown(f"<div class='kpi-card'><h3>Risorse Staffate</h3><h2>{occupate}</h2></div>", unsafe_allow_html=True)
             c3.markdown(f"<div class='kpi-card red'><h3>Margine Bench (GG)</h3><h2>{formatta_valuta(mancati_incassi_gg)}</h2></div>", unsafe_allow_html=True)
             c4.markdown(f"<div class='kpi-card green'><h3>Revenue Attesa (GG)</h3><h2>{formatta_valuta(revenue_attiva_gg)}</h2></div>", unsafe_allow_html=True)
